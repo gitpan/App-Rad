@@ -1,0 +1,11 @@
+Revision history for App-Rad
+
+0.03    22/05
+        Added getopt integration. First public release, on an unsuspecting world.
+
+0.02    10/05
+        Added controller object and documentation.
+
+0.01    09/20
+        First version, for internal use only.
+

@@ -1,0 +1,19 @@
+Changes
+MANIFEST
+Makefile.PL
+README
+lib/App/Rad.pm
+t/pod-coverage.t
+t/pod.t
+t/00-load.t
+t/01-standard.t
+t/02-defaultprogram.t
+t/02.5-default_with_args.t
+t/03-default_override.t
+t/04-help_override.t
+t/05-commands.t
+t/05.5-commands_with_args.t
+t/06-pre_post_tear.t
+t/07-argv_and_opt.t
+t/08-getopt_long.t
+META.yml                                 Module meta-data (added by MakeMaker)
