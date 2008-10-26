@@ -1,10 +1,10 @@
 package App::Rad;
 use warnings;
 use strict;
-use Carp;
+use Carp qw/carp croak/;
 use Getopt::Long 2.36 ();
 
-our $VERSION = '0.3';
+our $VERSION = '0.4';
 {
 
 #========================#
@@ -48,6 +48,7 @@ sub _init {
 
     $c->{'ARGV'} = [];
     $c->{'_options'} = {};
+    $c->{'_stash'} = {};
 
     $c->debug('initializing: default commands are: '
         . join ( ', ', $c->commands() )
@@ -146,7 +147,6 @@ sub _insert_code_into_array {
     my ($file_array_ref, $sub) = @_;
     my $changed = 0;
 
-    # let's put some space between us
     $sub = "\n\n" . $sub . "\n\n";
 
     my $line_id = 0;
@@ -172,29 +172,21 @@ sub _insert_code_into_array {
 }
 
 
-# deparses one-liner into a working
-# subroutine code, handling all of
-# perl's command line arguments
+# deparses one-liner into a working subroutine code
 sub _deparse {
 
     my $arg_ref = shift;
-    # now we create an array of the
-    # perl command-line parameters
-    # passed to this one-liner
+
+    # create array of perl command-line 
+    # parameters passed to this one-liner
     my @perl_args = ();
     while ( $arg_ref->[0] =~ m/^-/o ) {
         push @perl_args, (shift @{$arg_ref});
     }
 
-    #TODO: First, I don't know if "O" and
+    #TODO: I don't know if "O" and
     # "B::Deparse" can actually run the same way as
-    # a module as it does via -MO=Deparse. Second,
-    # I gotta figure out a way to change 'code' into
-    # a coderef...
-    # my $deparse = B::Deparse->new(@perl_args);
-    # my $code_ref = sub { eval $arg_ref->[0] };
-    # my $body = $deparse->coderef2text($code_ref);
-    #
+    # a module as it does via -MO=Deparse.
     # and while I can't figure out how to use B::Deparse
     # to do exactly what it does via 'compile', I should
     # at least catch the stderr buffer from qx via 
@@ -206,8 +198,7 @@ sub _deparse {
 }
 
 
-# receives a subroutine code text
-# and tries to adjust it into
+# tries to adjust a subroutine into
 # App::Rad's API for commands
 sub _sanitize {
     my $code = shift;
@@ -216,7 +207,7 @@ sub _sanitize {
     $code =~ s{(?:local\s*\(?\s*)?(\$\^I|\$/|\$\\)}
               {local ($1)}g;
 
-    # and then we just strip the BEGIN block
+    # and then we just strip any BEGIN blocks
     $code =~ s{BEGIN\s*\{\s*(.+)\s*\}\s*$}
               {$1}mg;
 
@@ -294,12 +285,10 @@ sub _tinygetopt {
 }
 
 
-
 # removes given sub from the
 # main program
 sub _remove_code_from_file {
     my $sub = shift;
-#TODO: flock
 
     #TODO: I really should be using PPI
     #if the user has it installed...
@@ -311,8 +300,7 @@ sub _remove_code_from_file {
     my @file = <$fh>;
     my $ret = _remove_code_from_array(\@file, $sub);
 
-    # TODO: only change the file if
-    # it's eval'd without errors
+    # TODO: only change the file if it's eval'd without errors
     seek ($fh, 0, 0) or croak "error seeking file $0: $!\n";
     print $fh @file or croak "error writing to file $0: $!\n";
     truncate($fh, tell($fh)) or croak "error truncating file $0: $!\n";
@@ -347,7 +335,7 @@ sub _remove_code_from_array {
             $close_braces++ while $file_array_ref->[$index] =~ m/\}/g;
             if ( $open_braces > 0 ) {
                 if ( $close_braces > $open_braces ) {
-                    carp "Error removing $sub: could not parse $0 correctly.";
+                    croak "Error removing $sub: could not parse $0 correctly.";
                 }
                 elsif ( $open_braces == $close_braces ) {
                     # remove lines from array
@@ -374,7 +362,6 @@ sub _remove_code_from_array {
 #     PUBLIC METHODS     #
 #========================#
 
-# stores available commands
 sub register_commands {
     my ($c, $options) = @_;
     if ($options) {
@@ -418,8 +405,6 @@ sub register_commands {
 }
 
 
-# add code to the list
-# of available commands
 sub register_command {
     my ($c, $command_name, $coderef) = @_;
 
@@ -430,8 +415,6 @@ sub register_command {
 }
 
 
-# removes the given command from
-# the commands list
 sub unregister_command {
     my ($c, $command_name) = @_;
 
@@ -444,8 +427,6 @@ sub unregister_command {
 }
 
 
-# create new default command names
-# cmd1, cmd2, cmd3, ...
 sub create_command_name {
     my $id = 0;
     foreach (commands()) {
@@ -457,15 +438,12 @@ sub create_command_name {
 }
 
 
-# lists all available commands
 sub commands {
     my $c = shift;
     return ( keys %{$c->{'_commands'}} );
 }
 
 
-# returns 1 if command exists,
-# 0 otherwise
 sub is_command {
     my ($c, $cmd) = @_;
     return (defined $c->{'_commands'}->{$cmd}
@@ -475,22 +453,16 @@ sub is_command {
 }
 
 
-# returns reference to a string
-# with the current command
 sub cmd {
     my $c = shift;
     return $c->{'cmd'};
 }
 
-# alias to $c->cmd
 sub command {
     return cmd(@_);
 }
 
 
-# this is the only function to be actually
-# executed inside a user's program. The rest
-# should only be referenced inside a function
 sub run {
     my $class = shift;
     my $c = {};
@@ -514,11 +486,8 @@ sub run {
     $c->execute();
 
     # that's it. Tear down everything and go home :)
-    $c->debug('calling teardown function...');
     $c->{'_functions'}->{'teardown'}->($c);
-    $c->debug('teardown function done.');
 
-    $c->debug('application ended.');
     return 0;
 }
 
@@ -539,26 +508,22 @@ sub execute {
 
     $c->debug('calling pre_process function...');
     $c->{'_functions'}->{'pre_process'}->($c);
-    $c->debug('pre_process function done.');
 
     # 2: actually run the command
     # (with the pre-processed arguments)
     $c->debug("executing '$cmd'...");
     if ($c->is_command($c->{'cmd'}) ) {
         $c->{'output'} = $c->{'_commands'}->{$cmd}->($c);
-        $c->debug("'$cmd' executed ok.");
     }
     else {
         $c->debug("'" . $c->{'cmd'} . "' not a command. Falling to default.");
         $c->{'output'} = $c->{'_functions'}->{'default'}->($c);
-        $c->debug("default executed ok.");
     }
 
     # 3: post-process the result
     # from the command
     $c->debug('calling post_process function...');
     $c->{'_functions'}->{'post_process'}->($c);
-    $c->debug('post_process function done.');
 
     $c->debug('reseting output');
     $c->{'output'} = undef;
@@ -568,25 +533,21 @@ sub execute {
 #in a shell-like environment
 
 
-# returns a reference to the ARGV array,
-# which can be used to manipulate 
-# a command's arguments.
 sub argv {
     my $c = shift;
     return $c->{'ARGV'};
 }
 
-# returns a reference to a hash containing
-# all command line options parsed either
-# via our _tinygetopt or Getopt::Long (getopt)
 sub options {
     my $c = shift;
     return $c->{'_options'};
 }
 
-# Getopt::Long interface. Receives an array
-# with the options, parse them into $c->options
-# and return whatever it is Getopt::Long returned
+sub stash {
+    my $c = shift;
+    return $c->{'_stash'};
+}    
+
 sub getopt {
     my ($c, @options) = @_;
 
@@ -599,7 +560,6 @@ sub getopt {
     return $parser->getoptions($c->{'_options'}, @options);
 }
 
-# display debugging information
 sub debug {
     my $c = shift;
     if ($c->{'debug'}) {
@@ -626,21 +586,14 @@ sub output {
 
 sub setup {
     my $c = shift;
-    # figure out what are
-    # the available commands
     $c->register_commands();
 }
 
 
-# pre-processes a given command and
-# arguments (e.g. to validate them)
 sub pre_process {
 }
 
 
-# post-processes the output from the command
-# (e.g. adding a common header/footer, printing,
-# formatting, sending email, ...)
 sub post_process {
     my $c = shift;
 
@@ -650,17 +603,12 @@ sub post_process {
 }
 
 
-# if a given command does not exists,
-# the execution falls to this function
 sub default {
     my $c = shift;
     return $c->{'_commands'}->{'help'}->($c);
 }
 
 
-# this is an empty stub for the teardown()
-# sub, called after every execution. By
-# default it does nothing, so there you go.
 sub teardown {
 }
 
@@ -731,8 +679,6 @@ sub include {
     return; 
 }
 
-# removes the requested function
-# from your program
 sub exclude {
     my $c = shift;
     if ( $c->argv->[0] ) {
@@ -749,7 +695,6 @@ sub exclude {
 }
 
 
-
 }
 42; # ...and thus ends thy module  ;)
 
@@ -761,7 +706,7 @@ App::Rad - Rapid (and easy!) creation of command line applications
 
 =head1 VERSION
 
-Version 0.03
+Version 0.04
 
 =head1 SYNOPSIS
 
@@ -922,14 +867,14 @@ Creating a new command is as easy as writing any sub inside your program. Some n
 
 =head2 The Controller
 
-Every command (sub) you create receives the controller object "$c" (sometimes referred as "$self" in other projects) as an argument. The controller is the main interface to App::Rad and has several methods to easen your command manipulation and execution tasks.
+Every command (sub) you create receives the controller object "C<< $c >>" (sometimes referred as "C<< $self >>" in other projects) as an argument. The controller is the main interface to App::Rad and has several methods to easen your command manipulation and execution tasks.
 
 
 =head2 Reading arguments
 
 =head3 $c->argv
 
-When someone types in a command, she may pass some arguments to it. Those arguments are stored in raw format inside the array reference $c->argv. This way it's up to you to control how many arguments (if at all) you want to receive and/or use.
+When someone types in a command, she may pass some arguments to it. Those arguments are stored in raw format inside the array reference C<< $c->argv >>. This way it's up to you to control how many arguments (if at all) you want to receive and/or use.
 
 So, in order to manipulate and use any arguments, remember:
 
@@ -950,7 +895,7 @@ Extended (long) option. Translates C<< --parameter or --parameter=value >> into 
 
 Single-letter option. Translates C<< -p >> into C<< $c->options->{p} >>.
 
-Single-letter options can be nested together, so C<-abc> will be parsed into $c->options->{a}, $c->options->{b} and $c->options{c}, while C<--abc> will be parsed into $c->options->{abc}. So our example dice-rolling command can be written this way:
+Single-letter options can be nested together, so C<-abc> will be parsed into C<< $c->options->{a} >>, C<< $c->options->{b} >> and C<< $c->options{c} >>, while C<--abc> will be parsed into C<< $c->options->{abc} >>. So our example dice-rolling command can be written this way:
 
     sub roll {
         my $c = shift;
@@ -966,7 +911,7 @@ And now you can call your 'roll' command like:
 
     $ myapp.pl roll --faces=6 --times=2
 
-Note that the App::Rad does not control which arguments can or cannot be passed: they are all parsed into $c->options and it's up to you to use whichever you want. For a more advanced use and control, see the C<< $c->getopt >> method below.
+Note that the App::Rad does not control which arguments can or cannot be passed: they are all parsed into C<< $c->options >> and it's up to you to use whichever you want. For a more advanced use and control, see the C<< $c->getopt >> method below.
 
 =head3 $c->getopt (Advanced Getopt usage)
 
@@ -985,6 +930,39 @@ App::Rad is also smoothly integrated with Getopt::Long, so you can have even mor
 This becomes very handy for complex or feature-rich commands. Please refer to the Getopt::Long module for more usage examples.
 
 
+=head2 Sharing Data: C<< $c->stash >>
+
+The "stash" is a universal hash for storing data among your Commands:
+
+    $c->stash->{foo} = 'bar';
+    $c->stash->{herculoids} = [ qw(igoo tundro zok gloop gleep) ];
+    $c->stash->{application} = { name => 'My Application' };
+
+You can use it for more granularity and control over your program. For instance, you can email the output of a command if (and only if) something happened:
+
+    sub command {
+        my $c = shift;
+        my $ret = do_something();
+
+        if ( $ret =~ /critical error/ ) {
+            $c->stash->{mail} = 1;
+        }
+        return $ret;
+    }
+
+    sub post_process {
+        my $c = shift;
+
+        if ( $c->stash->{mail} ) {
+            # send email alert...
+        }
+        else {
+            print $c->output . "\n";
+        }
+    }
+
+
+
 =head2 Returning output
 
 Once you're through, return whatever you want to give as output for your command:
@@ -998,7 +976,7 @@ Once you're through, return whatever you want to give as output for your command
 App::Rad lets you post-process the returned value of every command, so refrain from printing to STDOUT directly whenever possible as it will give much more power to your programs. See the I<post_process()> control function further below in this document.
 
 
-=head1 HELPER FUNCTIONS
+=head1 HELPER METHODS
 
 App::Rad comes with several functions to help you manage your application easily. B<If you can think of any other useful command that is not here, please drop me a line or RT request>.
 
@@ -1044,11 +1022,11 @@ This method, usually called during setup(), tells App::Rad to register all subro
 
 =over 4
 
-=item * ignore_prefix: subroutine names starting with the given string won't be added as commands
+=item * C<< ignore_prefix >>: subroutine names starting with the given string won't be added as commands
 
-=item * ignore_suffix: subroutine names ending with the given string won't be added as commands
+=item * C<< ignore_suffix >>: subroutine names ending with the given string won't be added as commands
 
-=item * ignore_regexp: subroutine names matching the given regular expression (as a string) won't be added as commands
+=item * C<< ignore_regexp >>: subroutine names matching the given regular expression (as a string) won't be added as commands
 
 =back
 
@@ -1062,9 +1040,9 @@ For example:
         $c->register_commands( { ignore_prefix => '_' } );
     }
 
-    sub foo  {}  # will become command
-    sub bar  {}  # will become command
-    sub _baz {}  # will B<< *NOT* >> become command
+    sub foo  {}  # will become a command
+    sub bar  {}  # will become a command
+    sub _baz {}  # will *NOT* become a command
 
 This way you can easily segregate between commands and helper functions, making your code even more reusable without jeopardizing the command line interface.
 
@@ -1077,6 +1055,7 @@ Unregisters a given command name so it's not available anymore. Note that the su
 =head2 $c->debug( I<MESSAGE> )
 
 Will print the given message on screen only if the debug flag is enabled:
+
     use App::Rad  qw( debug );
 
 =head2 run()
@@ -1086,7 +1065,7 @@ this is the main execution command for the application. That's the B<*ONLY*> thi
 
 =head1 CONTROL FUNCTIONS (to possibly override)
 
-App::Rad implements some control functions which are expected to be overridden by implementing them in your program. These are as follows:
+App::Rad implements some control functions which are expected to be overridden by implementing them in your program. They are as follows:
 
 =head2 setup()
 
@@ -1200,6 +1179,8 @@ App::Rad depends only on 5.8 core modules (Carp for errors, Getopt::Long for "$c
 
 If you have Perl::Tidy installed, the "include" command will tidy up your code before inclusion.
 
+The test suite depends on Test::More and File::Temp, both also core modules.
+
 
 =head1 INCOMPATIBILITIES
 
@@ -1253,7 +1234,7 @@ This is a small list of features I plan to add in the near future (in no particu
 
 =item * Shell-like environment
 
-=item * Stash and $c->load_config_file( I<FILE> )
+=item * $c->load_config_file( I<FILE> )
 
 =item * Extension possibilities (plugins!)
 
@@ -1266,6 +1247,12 @@ This is a small list of features I plan to add in the near future (in no particu
 =item * Embedded help
 
 =item * app-starter
+
+=item * command inclusion by prefix, suffix and regexp (feature request by fco)
+
+=item * command inclusion and exclusion also by attributes
+
+=item * differentiate between no command ( default() ) and invalid command ( invalid()? ) handling
 
 =back
 

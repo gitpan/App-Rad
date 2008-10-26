@@ -47,7 +47,7 @@ EOT
     print $fh $contents;
     close $fh;
    
-    my $ret = `perl $filename herculoids --igoo=ape -t 4 --zok=3.14 --glup -abc`;
+    my $ret = `$^X $filename herculoids --igoo=ape -t 4 --zok=3.14 --glup -abc`;
 
     my @ret = split / /, $ret;
 

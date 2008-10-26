@@ -15,7 +15,7 @@ EOT
     print $fh $contents;
     close $fh;
    
-    my $ret = `perl $filename`;
+    my $ret = `$^X $filename`;
 
 my $helptext = <<"EOHELP";
 Usage: $filename command [arguments]
@@ -28,6 +28,6 @@ EOHELP
     is($ret, $helptext);
 
     $ret = '';
-    $ret = `perl $filename help`;
+    $ret = `$^X $filename help`;
     is($ret, $helptext);
 }

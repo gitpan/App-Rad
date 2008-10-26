@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                App-Rad
-version:             0.3
+version:             0.4
 abstract:            Rapid (and easy!) creation of command line applications
 license:             ~
 author:              

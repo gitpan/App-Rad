@@ -42,7 +42,7 @@ EOT
     print $fh $contents;
     close $fh;
    
-    my $ret = `perl $filename`;
+    my $ret = `$^X $filename`;
 
 
 my $helptext = <<"EOHELP";
@@ -59,10 +59,10 @@ $helptext .= 'tearing down...';
     is($ret, $helptext);
 
     $ret = '';
-    $ret = `perl $filename test1`;
+    $ret = `$^X $filename test1`;
     is($ret, "my test #1 [NARF!]\ntearing down...");
 
     $ret = '';
-    $ret = `perl $filename test1 tested`;
+    $ret = `$^X $filename test1 tested`;
     is($ret, "got tested again [NARF!]\ntearing down...");
 }

@@ -35,7 +35,7 @@ EOT
     print $fh $contents;
     close $fh;
    
-    my $ret = `perl $filename test1 bla -abc --def --test1=2 --test2=test`;
+    my $ret = `$^X $filename test1 bla -abc --def --test1=2 --test2=test`;
 
     my @ret = split / /, $ret;
     is($ret[0], 5, 'number of elements');

@@ -1,6 +1,9 @@
 Revision history for App-Rad
 
-0.03    22/05
+0.04    10/26
+        Fixed some testing issues. Added Stash, and improved TODO list.
+
+0.03    10/22
         Added getopt integration. First public release, on an unsuspecting world.
 
 0.02    10/05

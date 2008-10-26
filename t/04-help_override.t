@@ -23,11 +23,11 @@ EOT
     print $fh $contents;
     close $fh;
    
-    my $ret = `perl $filename`;
+    my $ret = `$^X $filename`;
 
     is($ret, "this is an override of the default command\n");
 
     $ret = '';
-    $ret = `perl $filename help`;
+    $ret = `$^X $filename help`;
     is($ret, "this is an override of the help command\n");
 }
