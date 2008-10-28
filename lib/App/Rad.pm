@@ -4,7 +4,7 @@ use strict;
 use Carp qw/carp croak/;
 use Getopt::Long 2.36 ();
 
-our $VERSION = '0.4';
+our $VERSION = '0.5';
 {
 
 #========================#
@@ -31,6 +31,7 @@ sub _init {
         'pre_process'  => \&pre_process,
         'post_process' => \&post_process,
         'default'      => \&default,
+        'invalid'      => \&invalid,
         'teardown'     => \&teardown,
     };
 
@@ -245,7 +246,7 @@ sub _register_functions {
 sub _get_input {
     my $c = shift;
 
-    my $cmd = defined ($ARGV[0]) 
+    my $cmd = (defined ($ARGV[0]) and substr($ARGV[0], 0, 1) ne '-')
             ? shift @ARGV
             : ''
             ;
@@ -404,6 +405,9 @@ sub register_commands {
     }
 }
 
+sub register {
+    return register_command(@_);
+}
 
 sub register_command {
     my ($c, $command_name, $coderef) = @_;
@@ -414,6 +418,9 @@ sub register_command {
     $c->{'_commands'}->{$command_name} = $coderef;
 }
 
+sub unregister {
+    return unregister_command(@_);
+}
 
 sub unregister_command {
     my ($c, $command_name) = @_;
@@ -492,9 +499,6 @@ sub run {
 }
 
 
-# executes a given command, or
-# the one in $c->{'cmd'} if none
-# specified.
 sub execute {
     my ($c, $cmd) = @_;
 
@@ -509,15 +513,21 @@ sub execute {
     $c->debug('calling pre_process function...');
     $c->{'_functions'}->{'pre_process'}->($c);
 
-    # 2: actually run the command
-    # (with the pre-processed arguments)
     $c->debug("executing '$cmd'...");
+
+    # valid command, run it
     if ($c->is_command($c->{'cmd'}) ) {
         $c->{'output'} = $c->{'_commands'}->{$cmd}->($c);
     }
-    else {
-        $c->debug("'" . $c->{'cmd'} . "' not a command. Falling to default.");
+    # no command, run default()
+    elsif ( $cmd eq '' ) {
+        $c->debug('no command detected. Falling to default');
         $c->{'output'} = $c->{'_functions'}->{'default'}->($c);
+    }
+    # invalid command, run invalid()
+    else {
+        $c->debug("'$cmd' is not a valid command. Falling to invalid.");
+        $c->{'output'} = $c->{'_functions'}->{'invalid'}->($c);
     }
 
     # 3: post-process the result
@@ -608,6 +618,11 @@ sub default {
     return $c->{'_commands'}->{'help'}->($c);
 }
 
+sub invalid {
+    my $c = shift;
+    return $c->{'_functions'}->{'default'}->($c);
+}
+
 
 sub teardown {
 }
@@ -627,7 +642,7 @@ sub help {
                . "Available Commands:\n"
                ;
 
-    foreach ( $c->commands() ) {
+    foreach ( sort $c->commands() ) {
         $string .= "   $_\n";
     }
 
@@ -706,7 +721,7 @@ App::Rad - Rapid (and easy!) creation of command line applications
 
 =head1 VERSION
 
-Version 0.04
+Version 0.5
 
 =head1 SYNOPSIS
 
@@ -862,7 +877,7 @@ Note that built-in commands such as 'help' cannot be removed via I<exclude>. The
 
 =head1 ROLLING YOUR OWN COMMANDS
 
-Creating a new command is as easy as writing any sub inside your program. Some names ("setup", "default", "pre_process", "post_process" and "teardown") are reserved for special purposes (see the I<Control Functions> section of this document). App::Rad provides a nice interface for reading command line input and writing formatted output:
+Creating a new command is as easy as writing any sub inside your program. Some names ("setup", "default", "invalid", "pre_process", "post_process" and "teardown") are reserved for special purposes (see the I<Control Functions> section of this document). App::Rad provides a nice interface for reading command line input and writing formatted output:
 
 
 =head2 The Controller
@@ -978,7 +993,7 @@ App::Rad lets you post-process the returned value of every command, so refrain f
 
 =head1 HELPER METHODS
 
-App::Rad comes with several functions to help you manage your application easily. B<If you can think of any other useful command that is not here, please drop me a line or RT request>.
+App::Rad's controller comes with several methods to help you manage your application easily. B<If you can think of any other useful command that is not here, please drop me a line or RT request>.
 
 
 =head2 $c->execute( I<COMMAND_NAME> )
@@ -1012,8 +1027,28 @@ Returns a valid name for a command (i.e. a name slot that's not been used by you
 
 
 =head2 $c->register_command ( I<NAME>, I<CODEREF> )
+=head2 $c->register ( I<NAME>, I<CODEREF> )
 
 Registers a coderef as a callable command. Note that you don't have to call this in order to register a sub inside your program as a command, run() will already do this for you - and if you don't want some subroutines to be issued as commands you can always use C<< $c->register_commands() >> (note the plural) inside setup(). This is just an interface to dinamically include commands in your programs. The function returns the command name in case of success, undef otherwise.
+
+It is also very useful for creating aliases for your commands:
+
+    sub setup {
+        my $c = shift;
+        $c->register_commands();
+
+        $c->register('myalias', \&command);
+    }
+
+    sub command { return "Hi!" }
+
+and, on the command line:
+
+    [user@host]$ ./myapp.pl command
+    Hi!
+
+    [user@host]@ ./myapp.pl myalias
+    Hi!
 
 
 =head2 $c->register_commands ()
@@ -1048,8 +1083,9 @@ This way you can easily segregate between commands and helper functions, making 
 
 
 =head2 $c->unregister_command ( I<NAME> )
+=head2 $c->unregister ( I<NAME> )
 
-Unregisters a given command name so it's not available anymore. Note that the subroutine will still be there to be called from inside your program - it just won't be accessible via command line.
+Unregisters a given command name so it's not available anymore. Note that the subroutine will still be there to be called from inside your program - it just won't be accessible via command line anymore.
 
 
 =head2 $c->debug( I<MESSAGE> )
@@ -1104,15 +1140,17 @@ to get something like this:
     Usage: myapp.pl command [arguments]
 
     Available Commands:
-       include
-       help
        exclude
+       help
+       include
 
 
 
 =head2 default()
 
-If your application does not have the given command, it will fall in here. Default's default (grin) is just an alias for the help command.
+If no command is given to your application, it will fall in here. Please note that invalid (non-existant) command will fall here too, but you can change this behavior with the invalid() function below (although usually you don't want to).
+
+Default's default (grin) is just an alias for the help command.
 
     sub default {
         my $c = shift;
@@ -1121,8 +1159,11 @@ If your application does not have the given command, it will fall in here. Defau
         # command isn't valid.
     }
 
-You are free (and encouraged) to change the default behavior to whatever you want. This is rather useful for when your program will only do one thing, and as such it receives only parameters instead of command names. In those cases, use the "default()" sub as your main program's sub and parse the parameters with $c->argv and $c->getopt as you would in any other command.
+You are free (and encouraged) to change the default behavior to whatever you want. This is rather useful for when your program will only do one thing, and as such it receives only parameters instead of command names. In those cases, use the "C<< default() >>" sub as your main program's sub and parse the parameters with C<< $c->argv >> and C<< $c->getopt >> as you would in any other command.
 
+=head2 invalid()
+
+This is a special function to provide even more flexibility while creating your command line applications. This is called when the user requests a command that does not exist. The built-in C<< invalid() >> will simply redirect itself to C<< default() >> (see above), so usually you just have to worry about this when you want to differentiate between "no command given" (with or without getopt-like arguments) and "invalid command given" (with or without getopt-like arguments).
 
 =head2 teardown()
 
@@ -1230,8 +1271,6 @@ This is a small list of features I plan to add in the near future (in no particu
 
 =over 4
 
-=item * Alias creation
-
 =item * Shell-like environment
 
 =item * $c->load_config_file( I<FILE> )
@@ -1251,8 +1290,6 @@ This is a small list of features I plan to add in the near future (in no particu
 =item * command inclusion by prefix, suffix and regexp (feature request by fco)
 
 =item * command inclusion and exclusion also by attributes
-
-=item * differentiate between no command ( default() ) and invalid command ( invalid()? ) handling
 
 =back
 

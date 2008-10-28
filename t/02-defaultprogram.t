@@ -1,7 +1,7 @@
 use Test::More tests => 2;
 
 SKIP: {
-    eval { use File::Temp qw{ tempfile tempdir } };
+    eval "use File::Temp qw{ tempfile tempdir }";
     skip "File::Temp not installed", 2 if $@;
 
     my ($fh, $filename) = tempfile(UNLINK => 1);

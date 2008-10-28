@@ -1,5 +1,8 @@
 Revision history for App-Rad
 
+0.05    10/28
+        Separated default() into default() and invalid(). Updated documentation. More tests.
+
 0.04    10/26
         Fixed some testing issues. Added Stash, and improved TODO list.
 

@@ -1,7 +1,7 @@
 use Test::More tests => 2;
 
 SKIP: {
-    eval { use File::Temp qw{ tempfile tempdir } };
+    eval "use File::Temp qw{ tempfile tempdir }";
     skip "File::Temp not installed", 2 if $@;
 
     my ($fh, $filename) = tempfile(UNLINK => 1);
@@ -21,9 +21,9 @@ my $helptext = <<"EOHELP";
 Usage: $filename command [arguments]
 
 Available Commands:
-   include
-   help
    exclude
+   help
+   include
 
 EOHELP
 

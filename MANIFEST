@@ -10,10 +10,13 @@ t/01-standard.t
 t/02-defaultprogram.t
 t/02.5-default_with_args.t
 t/03-default_override.t
+t/03.5-default_and_invalid.t
 t/04-help_override.t
 t/05-commands.t
 t/05.5-commands_with_args.t
 t/06-pre_post_tear.t
 t/07-argv_and_opt.t
 t/08-getopt_long.t
+t/09-stash.t
+t/10-controller_methods.t
 META.yml                                 Module meta-data (added by MakeMaker)
