@@ -4,7 +4,7 @@ use strict;
 use Carp qw/carp croak/;
 use Getopt::Long 2.36 ();
 
-our $VERSION = '0.5';
+our $VERSION = '0.6';
 {
 
 #========================#
@@ -50,6 +50,7 @@ sub _init {
     $c->{'ARGV'} = [];
     $c->{'_options'} = {};
     $c->{'_stash'} = {};
+    $c->{'_config'} = {};
 
     $c->debug('initializing: default commands are: '
         . join ( ', ', $c->commands() )
@@ -258,7 +259,6 @@ sub _get_input {
     $c->debug('received parameters: ' . join (' ', @{$c->argv} ));
 
     $c->_tinygetopt();
-#    return ($cmd, \@ARGV);
 }
 
 # stores arguments passed to a
@@ -362,6 +362,42 @@ sub _remove_code_from_array {
 #========================#
 #     PUBLIC METHODS     #
 #========================#
+
+sub load_config {
+    my ($c, @files) = @_;
+
+    foreach my $filename (@files) {
+
+        $c->debug("loading configuration from $filename");
+        open my $CONFIG, '<', $filename
+            or croak "error opening $filename: $!\n";
+
+        while (<$CONFIG>) {
+            chomp;
+            s/#.*//;
+            s/^\s+//;
+            s/\s+$//;
+            next unless length;
+
+            if ( m/^([^\=\:\s]+)        # key
+                (?:                     # (value is optional)
+                   (?:\s*[\=\:]\s*|\s+) # separator ('=', ':' or whitespace)
+                   ([^\=\:\s]+)         # value
+                )?
+                /x
+            ) {
+                $c->config->{$1} = $2;
+            }
+        }
+        close $CONFIG;
+    }
+}
+
+sub config {
+    my $c = shift;
+    return $c->{'_config'};
+}
+
 
 sub register_commands {
     my ($c, $options) = @_;
@@ -721,7 +757,7 @@ App::Rad - Rapid (and easy!) creation of command line applications
 
 =head1 VERSION
 
-Version 0.5
+Version 0.6
 
 =head1 SYNOPSIS
 
@@ -1006,9 +1042,9 @@ Runs the given command. If no command is given, runs the one stored in C<< $c->c
 Returns a string containing the name of the command (that is, the first argument of your program), that will be called right after pre_process.
 
 
-=head2 $c->command
+=head3 $c->command
 
-Alias to C<< $c->cmd >>.
+Alias for C<< $c->cmd >>.
 
 
 =head2 $c->commands()
@@ -1026,8 +1062,27 @@ Returns 1 (true) if the given I<COMMAND_NAME> is available, 0 (false) otherwise.
 Returns a valid name for a command (i.e. a name slot that's not been used by your program). This goes in the form of 'cmd1', 'cmd2', etc., so don't use unless you absolutely have to. App::Rad, for instance, uses this whenever you try to I<include> (see below) a new command but do not supply a name for it.
 
 
+=head2 $c->load_config( I<< FILE (FILE2, FILE3, ...) >> )
+
+B<NOTE: This will most likely become a separate App::Rad::Extensions::Config (or something like that)>
+
+This method lets you easily load into your program one or more configuration files written like this:
+
+    # comments and blank lines are discarded
+    key1 value1
+    key2:value2
+    key3=value3
+    key5           # stand-alone attribute (and inline-comment)
+
+
+=head2 $c->config
+
+B<NOTE: This will most likely become a separate App::Rad::Extensions::Config (or something like that)>
+
+Returns a hash reference with any loaded config values (see C<< $c->load_config() >> above).
+
+
 =head2 $c->register_command ( I<NAME>, I<CODEREF> )
-=head2 $c->register ( I<NAME>, I<CODEREF> )
 
 Registers a coderef as a callable command. Note that you don't have to call this in order to register a sub inside your program as a command, run() will already do this for you - and if you don't want some subroutines to be issued as commands you can always use C<< $c->register_commands() >> (note the plural) inside setup(). This is just an interface to dinamically include commands in your programs. The function returns the command name in case of success, undef otherwise.
 
@@ -1049,6 +1104,10 @@ and, on the command line:
 
     [user@host]@ ./myapp.pl myalias
     Hi!
+
+=head3 $c->register ( I<NAME>, I<CODEREF> )
+
+Shorter alias for C<< $c->register_command() >>
 
 
 =head2 $c->register_commands ()
@@ -1083,10 +1142,13 @@ This way you can easily segregate between commands and helper functions, making 
 
 
 =head2 $c->unregister_command ( I<NAME> )
-=head2 $c->unregister ( I<NAME> )
 
 Unregisters a given command name so it's not available anymore. Note that the subroutine will still be there to be called from inside your program - it just won't be accessible via command line anymore.
 
+
+=head3 $c->unregister ( I<NAME> )
+
+Shorter alias for C<< $c->unregister_command() >>.
 
 =head2 $c->debug( I<MESSAGE> )
 
@@ -1273,8 +1335,6 @@ This is a small list of features I plan to add in the near future (in no particu
 
 =item * Shell-like environment
 
-=item * $c->load_config_file( I<FILE> )
-
 =item * Extension possibilities (plugins!)
 
 =item * Loadable commands (in an external container file)
@@ -1290,6 +1350,8 @@ This is a small list of features I plan to add in the near future (in no particu
 =item * command inclusion by prefix, suffix and regexp (feature request by fco)
 
 =item * command inclusion and exclusion also by attributes
+
+=item * some extra integration, maybe IPC::Cmd and IO::Prompt
 
 =back
 

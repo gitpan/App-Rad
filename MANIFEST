@@ -19,4 +19,5 @@ t/07-argv_and_opt.t
 t/08-getopt_long.t
 t/09-stash.t
 t/10-controller_methods.t
+t/11-config.t
 META.yml                                 Module meta-data (added by MakeMaker)

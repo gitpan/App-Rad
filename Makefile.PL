@@ -7,6 +7,7 @@ WriteMakefile(
     AUTHOR              => 'Breno G. de Oliveira <garu at cpan.org>',
     VERSION_FROM        => 'lib/App/Rad.pm',
     ABSTRACT_FROM       => 'lib/App/Rad.pm',
+    LICENSE             => 'perl',
     PL_FILES            => {},
     PREREQ_PM => {
         'Test::More'   => 0,
