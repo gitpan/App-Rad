@@ -1,5 +1,10 @@
 Revision history for App-Rad
 
+0.07    2008/11/12
+        * SMALL API CHANGE: $c->register_commands()'s parameters ignore_prefix, ignore_suffix and ignore_regexp now *must* start with a dash.
+        * $c->register_commands() helper method now can be used to include context documentation on available commands (RT #40578).
+        * Updated documentation. More tests.
+
 0.06    2008/11/03
         Fixed POD. Added license to Meta.yml. Added load_config and config methods.
 

@@ -1,4 +1,4 @@
-use Test::More tests => 13;
+use Test::More tests => 17;
 
 SKIP: {
     eval "use File::Temp qw{ tempfile tempdir }";
@@ -14,7 +14,10 @@ App::Rad->run();
 sub test1 {
     my $c = shift;
 
-    my $ret = scalar @{$c->argv} . ' ';
+    my $ret = scalar (@ARGV) . ' ';
+    $ret .= join (' ', @ARGV) . ' ';
+
+    $ret .= scalar @{$c->argv} . ' ';
 
     $ret .= join (' ', @{$c->argv}) . ' ';
 
@@ -35,25 +38,31 @@ EOT
     print $fh $contents;
     close $fh;
    
-    my $ret = `$^X $filename test1 bla -abc --def --test1=2 --test2=test`;
+    my $ret = `$^X $filename test1 bla -abc --def --test1=2 --test2=test ble`;
 
     my @ret = split / /, $ret;
-    is($ret[0], 5, 'number of elements');
 
-    # argv testing
+    is($ret[0], 6, 'number of elements in @ARGV');
     is($ret[1], 'bla');
     is($ret[2], '-abc');
     is($ret[3], '--def');
     is($ret[4], '--test1=2');
     is($ret[5], '--test2=test');
+    is($ret[6], 'ble');
 
-    is($ret[6], 6, 'number of options');
+    is($ret[7], 2, 'number of elements in $c->argv');
+
+    # argv testing
+    is($ret[8], 'bla');
+    is($ret[9], 'ble');
+
+    is($ret[10], 6, 'number of options');
 
     # options testing (sorted alfabetically)
-    is($ret[7], 'a');
-    is($ret[8], 'b');
-    is($ret[9], 'c');
-    is($ret[10], 'def');
-    is($ret[11], 'test1:2');
-    is($ret[12], 'test2:test');
+    is($ret[11], 'a');
+    is($ret[12], 'b');
+    is($ret[13], 'c');
+    is($ret[14], 'def');
+    is($ret[15], 'test1:2');
+    is($ret[16], 'test2:test');
 }

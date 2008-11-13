@@ -20,4 +20,10 @@ t/08-getopt_long.t
 t/09-stash.t
 t/10-controller_methods.t
 t/11-config.t
+t/12-register_commands.t
+t/13-register_commands2.t
+t/14-register_commands3.t
+t/15-register_commands4.t
+t/16-register_commands5.t
+t/17-register_commands6.t
 META.yml                                 Module meta-data (added by MakeMaker)

@@ -30,7 +30,7 @@ my $helptext = <<"EOHELP";
 Usage: $filename command [arguments]
 
 Available Commands:
-   help
+    help\tshow syntax and available commands
 
 EOHELP
 

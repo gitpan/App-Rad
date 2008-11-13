@@ -21,9 +21,9 @@ my $helptext = <<"EOHELP";
 Usage: $filename command [arguments]
 
 Available Commands:
-   exclude
-   help
-   include
+    exclude\tcompletely erase command from your program
+    help   \tshow syntax and available commands
+    include\tinclude one-liner as a command
 
 EOHELP
 

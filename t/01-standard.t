@@ -16,7 +16,7 @@ can_ok($m, 'default');
 can_ok($m, 'teardown');
 
 # tests the existance of basic commands
-can_ok($m, 'help');
 can_ok($m, 'include');
 can_ok($m, 'exclude');
+can_ok($m, 'help');
 
