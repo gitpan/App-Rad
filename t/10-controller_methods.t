@@ -20,7 +20,7 @@ sub command {
     $ret .= 'Called: ' . $c->cmd . ' (' . $c->command . ")\n";
 
     $c->register($c->create_command_name(), sub { return "test" });
-    $c->register_command('alias', \&anothercommand);
+    $c->register_command('alias', \&anothercommand, 'this is an alias');
     $c->unregister_command('yetanothercommand');
     $c->unregister('andanotherone');
 

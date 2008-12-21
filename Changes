@@ -1,5 +1,8 @@
 Revision history for App-Rad
 
+0.08    2008/12/21
+        Added Help() attribute. Put help, include and exclude into separated modules. Updated documentation. More tests.
+
 0.07    2008/11/12
         * SMALL API CHANGE: $c->register_commands()'s parameters ignore_prefix, ignore_suffix and ignore_regexp now *must* start with a dash.
         * $c->register_commands() helper method now can be used to include context documentation on available commands (RT #40578).

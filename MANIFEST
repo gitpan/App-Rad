@@ -3,6 +3,9 @@ MANIFEST
 Makefile.PL
 README
 lib/App/Rad.pm
+lib/App/Rad/Help.pm
+lib/App/Rad/Include.pm
+lib/App/Rad/Exclude.pm
 t/pod-coverage.t
 t/pod.t
 t/00-load.t
@@ -26,4 +29,5 @@ t/14-register_commands3.t
 t/15-register_commands4.t
 t/16-register_commands5.t
 t/17-register_commands6.t
+t/18-help_by_attribute.t
 META.yml                                 Module meta-data (added by MakeMaker)

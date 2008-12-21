@@ -1,10 +1,12 @@
 package App::Rad;
+use 5.006;
+use App::Rad::Help;
+use Carp qw/croak/;
+use Getopt::Long 2.36 ();
 use warnings;
 use strict;
-use Carp qw/carp croak/;
-use Getopt::Long 2.36 ();
 
-our $VERSION = '0.7';
+our $VERSION = '0.8';
 {
 
 #========================#
@@ -13,13 +15,11 @@ our $VERSION = '0.7';
 
 my @OPTIONS = ();
 
+
 sub _init {
     my $c = shift;
 
-    # this is an internal variable that
-    # holds the references to all
-    # available commands.
-    $c->register('help', \&help, 'show syntax and available commands');
+#    $c->register('help', \&help, 'show syntax and available commands');
 
     # this internal variable holds
     # references to all special
@@ -33,28 +33,29 @@ sub _init {
         'teardown'     => \&teardown,
     };
 
+    # instantiate references for the first time
+    $c->{'ARGV'    } = [];
+    $c->{'_options'} = {};
+    $c->{'_stash'  } = {};
+    $c->{'_config' } = {};
+
+    
+    #TODO: load extensions
+    App::Rad::Help->load($c);
+
     foreach (@OPTIONS) {
         if ($_ eq 'include') {
-            $c->register('include', \&include, 'include one-liner as a command');
-            #$c->{'_commands'}->{'include'} = \&include;
+            eval 'use App::Rad::Include; App::Rad::Include->load($c)';
+            croak 'error loading "include" extension.' if ($@);
         }
         elsif ($_ eq 'exclude') {
-            $c->register('exclude', \&exclude, 'completely erase command from your program');
-            #$c->{'_commands'}->{'exclude'} = \&exclude;
+            eval 'use App::Rad::Exclude; App::Rad::Exclude->load($c)';
+            croak 'error loading "exclude" extension.' if ($@);
         }
         elsif ($_ eq 'debug') {
             $c->{'debug'} = 1;
         }
 	}
-
-    # instantiate references for the first time
-    $c->{'ARGV'} = [];
-    $c->{'_options'} = {};
-    $c->{'_stash'} = {};
-    $c->{'_config'} = {};
-
-    
-    #TODO: load extensions
 
     $c->debug('initializing: default commands are: '
         . join ( ', ', $c->commands() )
@@ -65,39 +66,6 @@ sub import {
     my $class = shift;
     @OPTIONS = @_;
 }
-
-# shows specific help commands
-# TODO: context specific help, 
-# such as "myapp.pl help command"
-sub help {
-    my $c = shift;
-    my $string = "Usage: $0 command [arguments]\n\n"
-               . "Available Commands:\n"
-               ;
-
-#    foreach ( sort $c->commands() ) {
-#        $string .= "   $_\n";
-#    }
-
-    # get length of largest command name
-    my $len = 0;
-    foreach ( sort $c->commands() ) {
-        $len = length($_) if (length($_) > $len);
-    }
-
-    # format help string
-    foreach ( sort $c->commands() ) {
-        $string .= sprintf "    %-*s\t%s\n", $len, $_, 
-                           defined ($c->{'_commands'}->{$_}->{'help'})
-                           ? $c->{'_commands'}->{$_}->{'help'}
-                           : ''
-                           ;
-                ;
-    }
-
-    return $string;
-}
-
 
 # this function browses the main
 # application's symbol table and maps
@@ -120,141 +88,6 @@ sub _get_main_subs {
         }
     }
     return %subs;
-}
-
-# translates one-liner into
-# a complete, readable code
-sub _get_oneliner_code {
-    return _sanitize( _deparse($_[0]) );
-}
-
-
-#TODO: option to do it saving a backup file
-# (behavior probably set via 'setup')
-# inserts the string received
-# (hopefully code) inside the
-# user's program file as a 'sub'
-sub _insert_code_in_file {
-    my ($command_name, $code_text) = @_;
-
-    my $sub =<<"EOSUB";
-sub $command_name {
-$code_text
-}
-EOSUB
-
-    # tidy up the code, if Perl::Tidy is available
-    eval "use Perl::Tidy ()";
-    if (! $@) {
-        my $new_code = '';
-        Perl::Tidy::perltidy( argv => '', source => \$sub, destination => \$new_code );
-        $sub = $new_code;
-    }
-
-#TODO: flock
-#    eval {
-#        use 'Fcntl qw(:flock)';
-#    }
-#    if ($@) {
-#        carp 'Could not load file locking module';
-#    }
-
-    #TODO: I really should be using PPI
-    #if the user has it installed...
-    #or at least a decent parser
-    open my $fh, '+<', $0
-        or croak "error updating file $0: $!\n";
-
-#    flock($fh, LOCK_EX) or carp "could not lock file $0: $!\n";
-
-    my @file = <$fh>;
-    _insert_code_into_array(\@file, $sub);
-
-    # TODO: only change the file if
-    # it's eval'd without errors
-    seek ($fh, 0, 0) or croak "error seeking file $0: $!\n";
-    print $fh @file or croak "error writing to file $0: $!\n";
-    truncate($fh, tell($fh)) or croak "error truncating file $0: $!\n";
-
-    close $fh;
-}
-
-
-sub _insert_code_into_array {
-    my ($file_array_ref, $sub) = @_;
-    my $changed = 0;
-
-    $sub = "\n\n" . $sub . "\n\n";
-
-    my $line_id = 0;
-    while ( $file_array_ref->[$line_id] ) {
-
-        # this is a very rudimentary parser. It assumes a simple
-        # vanilla application as shown in the main example, and
-        # tries to include the given subroutine just after the
-        # App::Rad->run(); call.
-        next unless $file_array_ref->[$line_id] =~ /App::Rad->run/;
-
-        # now we add the sub (hopefully in the right place)
-        splice (@{$file_array_ref}, $line_id + 1, 0, $sub);
-        $changed = 1;
-        last;
-    }
-    continue {
-        $line_id++;
-    }
-    if ( not $changed ) {
-        croak "error finding 'App::Rad->run' call. $0 does not seem a valid App::Rad application.\n";
-    }
-}
-
-
-# deparses one-liner into a working subroutine code
-sub _deparse {
-
-    my $arg_ref = shift;
-
-    # create array of perl command-line 
-    # parameters passed to this one-liner
-    my @perl_args = ();
-    while ( $arg_ref->[0] =~ m/^-/o ) {
-        push @perl_args, (shift @{$arg_ref});
-    }
-
-    #TODO: I don't know if "O" and
-    # "B::Deparse" can actually run the same way as
-    # a module as it does via -MO=Deparse.
-    # and while I can't figure out how to use B::Deparse
-    # to do exactly what it does via 'compile', I should
-    # at least catch the stderr buffer from qx via 
-    # IPC::Cmd's run(), but that's another TODO
-    my $deparse = join ' ', @perl_args;
-    my $code = $arg_ref->[0];
-    my $body = qx{perl -MO=Deparse $deparse '$code'};
-    return $body;
-}
-
-
-# tries to adjust a subroutine into
-# App::Rad's API for commands
-sub _sanitize {
-    my $code = shift;
-
-    # turns BEGIN variables into local() ones
-    $code =~ s{(?:local\s*\(?\s*)?(\$\^I|\$/|\$\\)}
-              {local ($1)}g;
-
-    # and then we just strip any BEGIN blocks
-    $code =~ s{BEGIN\s*\{\s*(.+)\s*\}\s*$}
-              {$1}mg;
-
-    my $codeprefix =<<'EOCODE';
-my $c = shift;
-
-EOCODE
-    $code = $codeprefix . $code;
-
-    return $code;
 }
 
 
@@ -321,78 +154,6 @@ sub _tinygetopt {
         }
     }
     @{$c->argv} = @argv;
-}
-
-# removes given sub from the
-# main program
-sub _remove_code_from_file {
-    my $sub = shift;
-
-    #TODO: I really should be using PPI
-    #if the user has it installed...
-    open my $fh, '+<', $0
-        or croak "error updating file $0: $!\n";
-
-#    flock($fh, LOCK_EX) or carp "could not lock file $0: $!\n";
-
-    my @file = <$fh>;
-    my $ret = _remove_code_from_array(\@file, $sub);
-
-    # TODO: only change the file if it's eval'd without errors
-    seek ($fh, 0, 0) or croak "error seeking file $0: $!\n";
-    print $fh @file or croak "error writing to file $0: $!\n";
-    truncate($fh, tell($fh)) or croak "error truncating file $0: $!\n";
-
-    close $fh;
-
-    return $ret;
-}
-
-sub _remove_code_from_array {
-    my $file_array_ref = shift;
-    my $sub = shift;
-
-    my $index = 0;
-    my $open_braces = 0;
-    my $close_braces = 0;
-    my $sub_start = 0;
-    while ( $file_array_ref->[$index] ) {
-        if ($file_array_ref->[$index] =~ m/\s*sub\s+$sub(\s+|\s*\{)/) {
-            $sub_start = $index;
-        }
-        if ($sub_start) {
-            # in order to see where the sub ends, we'll
-            # try to count the number of '{' against
-            # the number of '}' available
-
-            #TODO:I should use an actual LR parser or
-            #something. This would be greatly enhanced
-            #and much less error-prone, specially for
-            #nested symbols in the same line.
-            $open_braces++ while $file_array_ref->[$index] =~ m/\{/g;
-            $close_braces++ while $file_array_ref->[$index] =~ m/\}/g;
-            if ( $open_braces > 0 ) {
-                if ( $close_braces > $open_braces ) {
-                    croak "Error removing $sub: could not parse $0 correctly.";
-                }
-                elsif ( $open_braces == $close_braces ) {
-                    # remove lines from array
-                    splice (@{$file_array_ref}, $sub_start, ($index + 1 - $sub_start));
-                    last;
-                }
-            }
-        }
-    }
-    continue {
-        $index++;
-    }
-
-    if ($sub_start == 0) {
-        return "Error finding '$sub' command. Built-in?";
-    }
-    else {
-        return "Command '$sub' successfuly removed.";
-    }
 }
 
 
@@ -474,11 +235,7 @@ sub register_commands {
             if ( exists $subs{$_} ) {
                 $c->debug("registering $_ as a command.");
                 $c->{'_commands'}->{$_}->{'code'} = $subs{$_};
-                $c->{'_commands'}->{$_}->{'help'} = defined $help_for_sub{$_}
-                                                  ? $help_for_sub{$_}
-                                                  : undef
-                                                  ;
-#                $c->register($_, $subs{$_}, $help_for_sub{$_});
+                App::Rad::Help->register_help($c, $_, $help_for_sub{$_});
             }
             else {
                 croak "'$_' does not appear to be a valid sub. Registering seems impossible.\n";
@@ -515,8 +272,7 @@ sub register_commands {
                 # avoid duplicate registration
                 if ( !exists $help_for_sub{$subname} ) {
                     $c->{'_commands'}->{$subname}->{'code'} = $subs{$subname};
-                    $c->{'_commands'}->{$subname}->{'help'} = undef;
-#                   $c->register($subname, $subs{$subname}, undef);
+                    App::Rad::Help->register_help($c, $subname, undef);
                 }
             }
         }
@@ -536,9 +292,7 @@ sub register {
 
     $c->debug("registering $command_name as a command.");
     $c->{'_commands'}->{$command_name}->{'code'} = $coderef;
-    $c->{'_commands'}->{$command_name}->{'help'} = defined $helptext
-                                                 ? $helptext
-                                                 : undef;
+    App::Rad::Help->register_help($c, $command_name, $helptext);
     return $command_name;
 }
 
@@ -745,72 +499,6 @@ sub invalid {
 sub teardown {
 }
 
-
-#=========================#
-#    BUILT-IN COMMANDS    #
-#=========================#
-
-
-# includes a one-liner as a command.
-# TODO: don't let the user include
-# a control function!!!!
-sub include {
-    my $c = shift;
-
-    my @args = @ARGV;
-
-    if( @args < 3 ) {
-        return "Sintax: $0 include [name] -perl_params 'code'.\n";
-    }
-
-    # figure out the name of
-    # the command to insert.
-    # Either the user chose it already
-    # or we choose it for the user
-    my $command_name = '';
-    if ( $args[0] !~ m/^-/o ) {
-        $command_name = shift @args;
-
-        # don't let the user add a command
-        # that already exists
-        if ( $c->is_command($command_name) ) {
-            return "Command '$command_name' already exists. Please remove it first with '$0 exclude $command_name";
-        }
-    }
-    else {
-        $command_name = $c->create_command_name();
-    }
-    $c->debug("including command '$command_name'...");
-
-    my $code_text = _get_oneliner_code(\@args);
-
-    _insert_code_in_file($command_name, $code_text);
-
-    # turns code string into coderef so we
-    # can register it (just in case the user
-    # needs to run it right away)
-    my $code_ref = sub { eval $code_text};
-    $c->register($command_name, $code_ref);
-
-    return; 
-}
-
-sub exclude {
-    my $c = shift;
-    if ( $c->argv->[0] ) {
-        if ( $c->is_command( $c->argv->[0] ) ) {
-            return _remove_code_from_file($c->argv->[0]);
-        }
-        else {
-            return $c->argv->[0] . ' is not an available command';
-        }
-    }
-    else {
-        return "Sintax: $0 exclude command_name"
-    }
-}
-
-
 }
 42; # ...and thus ends thy module  ;)
 
@@ -822,7 +510,7 @@ App::Rad - Rapid (and easy!) creation of command line applications
 
 =head1 VERSION
 
-Version 0.7
+Version 0.8
 
 =head1 SYNOPSIS
 
@@ -919,7 +607,6 @@ App::Rad aims to be a simple yet powerful framework for developing your command-
 It also tries to provide a handy interface for your common command-line tasks. B<If you have a feature request to easen out your tasks even more, please drop me an email or a RT feature request.>
 
 
-
 =head1 BUILT-IN COMMANDS
 
 This module comes with the following default commands. You are free to override them as you see fit.
@@ -927,8 +614,28 @@ This module comes with the following default commands. You are free to override 
 
 =head2 help
 
-Shows help information for your program. This built-in function displays the program name and all available commands (including the ones you included) if a user types the 'help' command, or no command at all, or any command that does not exist (as they'd fall into the 'default' control function which (by default) calls 'help').
+Shows help information for your program. This built-in function displays the program name and all available commands (including the ones you added yourself) if a user types the 'help' command, or no command at all, or any command that does not exist (as they'd fall into the 'default' control function which (by default) calls 'help').
 
+You can also display specific embedded help for your commands, either explicitly registering them with C<< $c->register() >> or C<< $c->register_commands() >> inside C<< $c->setup() >> (see respective sections below) or with the Help() attribute:
+
+    use App::Rad;
+    App::Rad->run();
+    
+    sub mycmd 
+    :Help(display a nice welcome message) 
+    {
+        return "Welcome!";
+    }
+
+the associated help text would go like this:
+
+    [user@host]$ ./myapp.pl
+    Usage: myapp.pl command [arguments]
+
+    Available Commands:
+        help 	show syntax and available commands
+        mycmd	display a nice welcome message
+    
 
 =head1 OTHER BUILT IN COMMANDS (OPT-IN)
 
@@ -1179,7 +886,7 @@ B<NOTE: This will most likely become a separate App::Rad::Extensions::Config (or
 Returns a hash reference with any loaded config values (see C<< $c->load_config() >> above).
 
 
-=head2 $c->register_command ( I<NAME>, I<CODEREF> )
+=head2 $c->register ( I<NAME>, I<CODEREF> [, I<INLINE_HELP> ])
 
 Registers a coderef as a callable command. Note that you don't have to call this in order to register a sub inside your program as a command, run() will already do this for you - and if you don't want some subroutines to be issued as commands you can always use C<< $c->register_commands() >> (note the plural) inside setup(). This is just an interface to dinamically include commands in your programs. The function returns the command name in case of success, undef otherwise.
 
@@ -1202,9 +909,13 @@ and, on the command line:
     [user@host]@ ./myapp.pl myalias
     Hi!
 
-=head3 $c->register ( I<NAME>, I<CODEREF> )
+The last parameter is optional and lets you add inline help to your command:
 
-Shorter alias for C<< $c->register_command() >>
+    $c->register('cmd_name', \&cmd_func, 'display secret of life');
+
+=head3 $c->register_command ( I<NAME>, I<CODEREF> [, I<INLINE_HELP> ] )
+
+Longer alias for C<< $c->register() >>. It's use is disencouraged as one may confuse it with C<register_commands> (note the plural) below. Plus you type more :)
 
 
 =head2 $c->register_commands()
@@ -1438,7 +1149,7 @@ App::Rad requires no configuration files or environment variables.
 
 =head1 DEPENDENCIES
 
-App::Rad depends only on 5.8 core modules (Carp for errors, Getopt::Long for "$c->getopt" and O/B::Deparse for the "include" command).
+App::Rad depends only on 5.8 core modules (Carp for errors, Getopt::Long for "$c->getopt", Attribute::Handlers for "help" and O/B::Deparse for the "include" command).
 
 If you have Perl::Tidy installed, the "include" command will tidy up your code before inclusion.
 
@@ -1465,7 +1176,7 @@ You can find documentation for this module with the perldoc command.
 
 Although this Module comes without any warraties whatsoever (see DISCLAIMER below), I try really hard to provide some quality assurance for the users. This means I not only try to close all reported bugs in the minimum amount of time but I also try to find some on my own.
 
-This version of App::Rad comes with 141 tests and I keep my eye constantly on CPAN Testers L<http://www.cpantesters.org/show/App-Rad.html> to ensure it passes all of them, in all platforms. You can send me your own App::Rad tests if you feel I'm missing something and I'll hapilly add them to the distribution.
+This version of App::Rad comes with 151 tests and I keep my eye constantly on CPAN Testers L<http://www.cpantesters.org/show/App-Rad.html> to ensure it passes all of them, in all platforms. You can send me your own App::Rad tests if you feel I'm missing something and I'll hapilly add them to the distribution.
 
 Since I take user's feedback very seriously, I really hope you send me any wishlist/TODO you'd like App::Rad to have (please try to send them via RT so other people can give their own suggestions).
 
