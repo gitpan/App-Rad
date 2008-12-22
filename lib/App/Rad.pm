@@ -6,7 +6,7 @@ use Getopt::Long 2.36 ();
 use warnings;
 use strict;
 
-our $VERSION = '0.8';
+our $VERSION = '0.9';
 {
 
 #========================#
@@ -18,8 +18,6 @@ my @OPTIONS = ();
 
 sub _init {
     my $c = shift;
-
-#    $c->register('help', \&help, 'show syntax and available commands');
 
     # this internal variable holds
     # references to all special
@@ -510,7 +508,7 @@ App::Rad - Rapid (and easy!) creation of command line applications
 
 =head1 VERSION
 
-Version 0.8
+Version 0.9
 
 =head1 SYNOPSIS
 
@@ -586,18 +584,13 @@ You can try on the command line:
         help	show syntax and available commands
 
 
-   [user@host]$ ./myapp.pl drink --drink=martini
+   [user@host]$ ./myapp.pl bar --drink=martini
     you asked for a martini
 
 
 =head1 WARNING
 
 This module is very young, likely to change in strange ways and to have some bugs (please report if you find any!). I will try to keep the API stable, but even that is subject to change (let me know if you find anything annoying or have a wishlist). You have been warned!
-
-
-=head1 WARNING II (MODULE NAME)
-
-I'm still trying to figure out a nice name for this module, so it might change. Feel free to offer me any naming suggestions you might have :)
 
 
 =head1 DESCRIPTION

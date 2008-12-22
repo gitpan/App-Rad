@@ -1,5 +1,8 @@
 Revision history for App-Rad
 
+0.09    2008/12/22
+        Fixed dependencies check and documentation typo.
+
 0.08    2008/12/21
         Added Help() attribute. Put help, include and exclude into separated modules. Updated documentation. More tests.
 
