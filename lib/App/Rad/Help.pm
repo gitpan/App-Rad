@@ -3,7 +3,7 @@ use Attribute::Handlers;
 use strict;
 use warnings;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub load {
     my ($self, $c) = @_;
@@ -15,9 +15,17 @@ sub load {
 # such as "myapp.pl help command"
 sub help {
     my $c = shift;
-    my $string = "Usage: $0 command [arguments]\n\n"
-               . "Available Commands:\n"
-               ;
+    return usage() . "\n\n" . helpstr($c);
+}
+
+sub usage {
+    return "Usage: $0 command [arguments]";
+}
+
+sub helpstr {
+    my $c = shift;
+    
+    my $string = "Available Commands:\n";
 
     # get length of largest command name
     my $len = 0;
@@ -34,9 +42,9 @@ sub help {
                            ;
                 ;
     }
-
     return $string;
 }
+    
 
 {
 my %help_attr = ();
@@ -72,7 +80,7 @@ App::Rad::Help - 'help' command extension for App::Rad
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =head1 SYNOPSIS
 
@@ -107,7 +115,7 @@ you can also do it with the attribute 'Help' in your subs
 
 =head1 DESCRIPTION
 
-This is an internal module for App::Rad and should not be used separately. Please refer to L<< App::Rad >> for further documentation.
+This is an internal module for App::Rad and should not be used separately (unless, perhaps, you want to use one of its methods to customize your own 'help' command). Please refer to L<< App::Rad >> for further documentation.
 
 
 =head1 INTERNAL METHODS
@@ -124,6 +132,13 @@ Show help text
 
 Associates help text with command
 
+=head2 usage
+
+Prints usage string. Default is "Usage: $0 command [arguments]", where $0 is your program's name.
+
+=head2 helpstr
+
+Prints a help string with all available commands and their help description.
 
 =head1 DEPENDENCIES
 

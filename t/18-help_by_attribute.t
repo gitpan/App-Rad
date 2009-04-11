@@ -2,7 +2,7 @@ use Test::More tests => 1;
 
 SKIP: {
     eval "use File::Temp qw{ tempfile tempdir } ";
-    skip "File::Temp not installed", 7 if $@;
+    skip "File::Temp not installed", 1 if $@;
 
     my ($fh, $filename) = tempfile(UNLINK => 1);
     diag("using temporary program file '$filename' to test functionality");

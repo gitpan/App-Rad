@@ -1,12 +1,11 @@
 package App::Rad;
 use 5.006;
 use App::Rad::Help;
-use Carp qw/croak/;
-use Getopt::Long 2.36 ();
+use Carp                ();
 use warnings;
 use strict;
 
-our $VERSION = '0.9';
+our $VERSION = '0.10';
 {
 
 #========================#
@@ -15,9 +14,14 @@ our $VERSION = '0.9';
 
 my @OPTIONS = ();
 
-
 sub _init {
     my $c = shift;
+
+    # instantiate references for the first time
+    $c->{'ARGV'    } = [];
+    $c->{'_options'} = {};
+    $c->{'_stash'  } = {};
+    $c->{'_config' } = {};
 
     # this internal variable holds
     # references to all special
@@ -30,34 +34,34 @@ sub _init {
         'invalid'      => \&invalid,
         'teardown'     => \&teardown,
     };
-
-    # instantiate references for the first time
-    $c->{'ARGV'    } = [];
-    $c->{'_options'} = {};
-    $c->{'_stash'  } = {};
-    $c->{'_config' } = {};
-
     
-    #TODO: load extensions
+    #load extensions
     App::Rad::Help->load($c);
-
     foreach (@OPTIONS) {
         if ($_ eq 'include') {
             eval 'use App::Rad::Include; App::Rad::Include->load($c)';
-            croak 'error loading "include" extension.' if ($@);
+            Carp::croak 'error loading "include" extension.' if ($@);
         }
         elsif ($_ eq 'exclude') {
             eval 'use App::Rad::Exclude; App::Rad::Exclude->load($c)';
-            croak 'error loading "exclude" extension.' if ($@);
+            Carp::croak 'error loading "exclude" extension.' if ($@);
         }
         elsif ($_ eq 'debug') {
             $c->{'debug'} = 1;
         }
+        else {
+        	$c->load_plugin($_);
+        }
 	}
-
-    $c->debug('initializing: default commands are: '
-        . join ( ', ', $c->commands() )
+	
+    # tiny cheat to avoid doing a lot of processing
+    # when not in debug mode. If needed, I'll create
+    # an actual is_debugging() method or something
+    if ($c->{'debug'}) {
+        $c->debug('initializing: default commands are: '
+            . join ( ', ', $c->commands() )
         );
+    }
 }
 
 sub import {
@@ -65,8 +69,32 @@ sub import {
     @OPTIONS = @_;
 }
 
-# this function browses the main
-# application's symbol table and maps
+sub load_plugin {
+    my $c = shift;
+    my $plugin = shift;
+	my $class = ref $c;
+	
+	unless ($plugin =~ s{^\+}{} ) {
+		$plugin = "App::Rad::Plugin::$plugin";
+	}
+	eval "use $plugin ()";
+    Carp::croak "error loading plugin '$plugin': $@\n"
+        if $@;
+    my %methods = _get_subs_from($plugin);
+
+    Carp::croak "No methods found for plugin '$plugin'\n"
+		unless keys %methods > 0;
+
+	no strict 'refs';
+	foreach my $method (keys %methods) {
+        next if substr ($method, 0, 1) eq '_';
+		*{"$class\::$method"} = $methods{$method};
+		$c->debug("-- method '$method' added [$plugin]");
+	}
+}
+
+# this function browses a file's
+# symbol table (usually 'main') and maps
 # each function to a hash
 #
 # FIXME: if I create a sub here (Rad.pm) and
@@ -74,12 +102,14 @@ sub import {
 # inside the user's program (e.g.: sub ARGV {}),
 # the name will appear here as a command. It really 
 # shouldn't...
-sub _get_main_subs {
-
+sub _get_subs_from {
+    my $package = shift || 'main';
+    $package .= '::';
+    
     my %subs = ();
-    no strict 'refs';
 
-    while (my ($key, $value) = ( each %{*{main::}} )) {
+    no strict 'refs';
+    while (my ($key, $value) = ( each %{*{$package}} )) {
         local (*SYMBOL) = $value;
         if ( defined $value && defined *SYMBOL{CODE} ) {
             $subs{$key} = $value;
@@ -94,7 +124,7 @@ sub _get_main_subs {
 # user-defined ones
 sub _register_functions {
     my $c = shift;
-    my %subs = _get_main_subs();
+    my %subs = _get_subs_from('main');
 
     # replaces only if the function is
     # in 'default', 'pre_process' or 'post_process'
@@ -166,7 +196,7 @@ sub load_config {
 
         $c->debug("loading configuration from $filename");
         open my $CONFIG, '<', $filename
-            or croak "error opening $filename: $!\n";
+            or Carp::croak "error opening $filename: $!\n";
 
         while (<$CONFIG>) {
             chomp;
@@ -189,9 +219,6 @@ sub load_config {
     }
 }
 
-sub config {
-    return $_[0]->{'_config'};
-}
 
 #TODO: this code probably could use some optimization
 sub register_commands {
@@ -202,7 +229,7 @@ sub register_commands {
     # process parameters
     foreach my $item (@_) {
         if ( ref ($item) ) {
-            croak '"register_commands" may receive only HASH references'
+            Carp::croak '"register_commands" may receive only HASH references'
                 unless ref ($item) eq 'HASH';
             foreach my $params (keys %{$item}) {
                 if ($params eq '-ignore_prefix'
@@ -221,7 +248,7 @@ sub register_commands {
         }
     }
 
-    my %subs = _get_main_subs();
+    my %subs = _get_subs_from('main');
 
     foreach (keys %help_for_sub) {
 
@@ -236,7 +263,7 @@ sub register_commands {
                 App::Rad::Help->register_help($c, $_, $help_for_sub{$_});
             }
             else {
-                croak "'$_' does not appear to be a valid sub. Registering seems impossible.\n";
+                Carp::croak "'$_' does not appear to be a valid sub. Registering seems impossible.\n";
             }
         }
     }
@@ -278,10 +305,7 @@ sub register_commands {
 }
 
 
-sub register_command {
-    return register(@_);
-}
-
+sub register_command { return register(@_) }
 sub register {
     my ($c, $command_name, $coderef, $helptext) = @_;
     $c->debug("got: " . ref $coderef);
@@ -294,10 +318,7 @@ sub register {
     return $command_name;
 }
 
-sub unregister_command {
-    return unregister(@_);
-}
-
+sub unregister_command { return unregister(@_) }
 sub unregister {
     my ($c, $command_name) = @_;
 
@@ -334,13 +355,9 @@ sub is_command {
            );
 }
 
-
+sub command { return cmd(@_) }
 sub cmd {
     return $_[0]->{'cmd'};
-}
-
-sub command {
-    return cmd(@_);
 }
 
 
@@ -372,6 +389,12 @@ sub run {
     return 0;
 }
 
+# run operations 
+# in a shell-like environment
+#sub shell {
+#    my $class = shift;
+#    App::Rad::Shell::shell($class);
+#}
 
 sub execute {
     my ($c, $cmd) = @_;
@@ -413,23 +436,17 @@ sub execute {
     $c->{'output'} = undef;
 }
 
-#TODO: sub shell { } - run operations 
-#in a shell-like environment
+sub argv    { return $_[0]->{'ARGV'}     }
+sub options { return $_[0]->{'_options'} }
+sub stash   { return $_[0]->{'_stash'}   }    
+sub config  { return $_[0]->{'_config'}  }
 
-
-sub argv {
-    return $_[0]->{'ARGV'};
-}
-
-sub options {
-    return $_[0]->{'_options'};
-}
-
-sub stash {
-    return $_[0]->{'_stash'};
-}    
 
 sub getopt {
+    require Getopt::Long;
+    Carp::croak "Getopt::Long needs to be version 2.36 or above"
+        unless $Getopt::Long::VERSION >= 2.36;
+
     my ($c, @options) = @_;
 
     # reset values from tinygetopt
@@ -465,14 +482,11 @@ sub output {
 #     CONTROL FUNCTIONS   #
 #=========================#
 
-sub setup {
-    $_[0]->register_commands();
-}
+sub setup { $_[0]->register_commands() }
 
+sub teardown {}
 
-sub pre_process {
-}
-
+sub pre_process {}
 
 sub post_process {
     my $c = shift;
@@ -488,18 +502,15 @@ sub default {
     return $c->{'_commands'}->{'help'}->{'code'}->($c);
 }
 
+
 sub invalid {
     my $c = shift;
     return $c->{'_functions'}->{'default'}->($c);
 }
 
 
-sub teardown {
-}
-
 }
 42; # ...and thus ends thy module  ;)
-
 __END__
 
 =head1 NAME
@@ -508,7 +519,7 @@ App::Rad - Rapid (and easy!) creation of command line applications
 
 =head1 VERSION
 
-Version 0.9
+Version 0.10
 
 =head1 SYNOPSIS
 
@@ -533,10 +544,36 @@ Next, start creating your own functions (e.g.) inside I<myapp.pl>:
 
 And now your simple command line program I<myapp.pl> has a 'hello' command!
 
+    [user@host]$ ./myapp.pl
+    Usage: myapp.pl command [arguments]
+    
+    Available Commands:
+        hello
+        help    show syntax and available commands
+
+
    [user@host]$ ./myapp.pl hello
    Hello, World!
 
-App::Rad also lets you expand your applications, providing a lot of flexibility for every command, with embedded help, argument and options parsing, and much more:
+You could easily add a customized help message for your command through the 'Help()' attribute:
+
+    sub hello 
+    :Help(give a nice compliment)
+    {
+        return "Hello, World!";
+    }
+
+And then, as expected:
+
+    [user@host]$ ./myapp.pl
+    Usage: myapp.pl command [arguments]
+    
+    Available Commands:
+        hello   give a nice compliment
+        help    show syntax and available commands
+
+
+App::Rad also lets you expand your applications, providing a lot of flexibility for every command, with embedded help, argument and options parsing, configuration file, default behavior, and much more:
 
     use App::Rad;
     App::Rad->run();
@@ -598,6 +635,34 @@ This module is very young, likely to change in strange ways and to have some bug
 App::Rad aims to be a simple yet powerful framework for developing your command-line applications. It can easily transform your Perl I<one-liners> into reusable subroutines than can be called directly by the user of your program.
 
 It also tries to provide a handy interface for your common command-line tasks. B<If you have a feature request to easen out your tasks even more, please drop me an email or a RT feature request.>
+
+=head2 Extending App::Rad - Plugins!
+
+App::Rad plugins can be loaded by naming them as arguments to the C<< use App::Rad >> statement. Just ommit the C<< App::Rad::Plugin >> prefix from the plugin name. For example:
+
+   use App::Rad  qw(My::Module);
+
+will load the C<< App::Rad::Plugin::My::Module >> plugin for you!
+
+Developers are B<strongly> encouraged to publish their App::Rad plugins under the C<< App::Rad::Plugin >> namespace. But, if your plugin start with a name other than that, you can fully qualify the name by using an unary plus sign:
+
+  use App::Rad  qw(
+          My::Module
+          +Fully::Qualified::Plugin::Name
+  );
+
+Note that plugins are loaded in the order in which they appear.
+
+B<Please refer to the actual plugin documentation for specific usage>. And check out L<< App::Rad::Plugin >> if you want to create your own plugins.
+
+
+=head1 INSTANTIATION
+
+These are the main execution calls for the application. In your App::Rad programs, the B<*ONLY*> thing your script needs to actually (and actively) call is one of the instantiation (or dispatcher) methods. Leave all the rest to your subs. Currently, the only available dispatcher is run():
+
+=head2 run()
+
+You'll be able to access all of your program's commands directly through the command line, as shown in the synopsis.
 
 
 =head1 BUILT-IN COMMANDS
@@ -841,7 +906,7 @@ Returns a string containing the name of the command (that is, the first argument
 
 =head3 $c->command
 
-Alias for C<< $c->cmd >>.
+Alias for C<< $c->cmd >>. This longer form is discouraged and may be removed in future versions, as one may confuse it with the C<< $c->commands() >> method, explained below. You have been warned.
 
 
 =head2 $c->commands()
@@ -909,7 +974,7 @@ The last parameter is optional and lets you add inline help to your command:
 =head3 $c->register_command ( I<NAME>, I<CODEREF> [, I<INLINE_HELP> ] )
 
 Longer alias for C<< $c->register() >>. It's use is disencouraged as one may confuse it with C<register_commands> (note the plural) below. Plus you type more :)
-
+As such, this method may be removed in future versions. You have been warned!
 
 =head2 $c->register_commands()
 
@@ -917,7 +982,7 @@ This method, usually called during setup(), tells App::Rad to register subroutin
 
 =head3 Adding single commands
 
-    $c->register_commands( qw/ foo bar baz/ );
+    $c->register_commands( qw/foo bar baz/ );
 
 The code above will register B<only> the subs C<foo>, C<bar> and C<baz> as commands. Other subroutines will B<not> be valid commands, so they can be used as internal subs for your program. You can change this behavior with the bundled options - see 'Adding several commands' and 'Putting it all together' below.
 
@@ -1007,12 +1072,13 @@ You can even bundle the hash reference to include your C<< cmd => help >> and sp
 
 =head2 $c->unregister_command ( I<NAME> )
 
-Unregisters a given command name so it's not available anymore. Note that the subroutine will still be there to be called from inside your program - it just won't be accessible via command line anymore.
+Longer alias for C<< $c->unregister() >>. The use of the shorter form is encouraged, and this alias may be removed in future versions. You have been warned.
 
 
 =head3 $c->unregister ( I<NAME> )
 
-Shorter alias for C<< $c->unregister_command() >>.
+Unregisters a given command name so it's not available anymore. Note that the subroutine will still be there to be called from inside your program - it just won't be accessible via command line anymore.
+
 
 =head2 $c->debug( I<MESSAGE> )
 
@@ -1020,9 +1086,10 @@ Will print the given message on screen only if the debug flag is enabled:
 
     use App::Rad  qw( debug );
 
-=head2 run()
 
-this is the main execution command for the application. That's the B<*ONLY*> thing your script needs to actively do. Leave all the rest to your subs.
+=head2 $c->load_plugin( I<PLUGIN NAME> )
+
+This method will dinamically load the given plugin. The plugin needs to be under the C<< App::Rad::Plugin >> namespace, and the name should be relative to this path (i.e. $c->load_plugin('MyPlugin') will try to load 'App::Rad::Plugin::MyPlugin'). If you want to load a plugin by its fully qualified name, you need to prepend a plus sign to the name ('+Fully::Qualified::Plugin::Name'). B<This is an internal method> and you really should refrain from using it. Instead, plugins should be loaded as parameters to the C<< use App::Rad >> statement, as explained above.
 
 
 =head1 CONTROL FUNCTIONS (to possibly override)
@@ -1169,7 +1236,7 @@ You can find documentation for this module with the perldoc command.
 
 Although this Module comes without any warraties whatsoever (see DISCLAIMER below), I try really hard to provide some quality assurance for the users. This means I not only try to close all reported bugs in the minimum amount of time but I also try to find some on my own.
 
-This version of App::Rad comes with 151 tests and I keep my eye constantly on CPAN Testers L<http://www.cpantesters.org/show/App-Rad.html> to ensure it passes all of them, in all platforms. You can send me your own App::Rad tests if you feel I'm missing something and I'll hapilly add them to the distribution.
+This version of App::Rad comes with 157 tests and I keep my eye constantly on CPAN Testers L<http://www.cpantesters.org/show/App-Rad.html> to ensure it passes all of them, in all platforms. You can send me your own App::Rad tests if you feel I'm missing something and I'll hapilly add them to the distribution.
 
 Since I take user's feedback very seriously, I really hope you send me any wishlist/TODO you'd like App::Rad to have (please try to send them via RT so other people can give their own suggestions).
 
@@ -1204,8 +1271,6 @@ This is a small list of features I plan to add in the near future (in no particu
 =over 4
 
 =item * Shell-like environment
-
-=item * Extension possibilities (plugins!)
 
 =item * Loadable commands (in an external container file)
 
