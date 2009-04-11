@@ -5,7 +5,7 @@ use Carp                ();
 use warnings;
 use strict;
 
-our $VERSION = '0.10';
+our $VERSION = '1.00';
 {
 
 #========================#
@@ -519,7 +519,7 @@ App::Rad - Rapid (and easy!) creation of command line applications
 
 =head1 VERSION
 
-Version 0.10
+Version 1.00
 
 =head1 SYNOPSIS
 
