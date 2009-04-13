@@ -82,28 +82,6 @@ You can find documentation for this module with the perldoc command.
 
     perldoc App::Rad::Plugin
 
-You can also look for information at:
-
-=over 4
-
-=item * RT: CPAN's request tracker
-
-L<http://rt.cpan.org/garu/Bugs.html?Dist=App-Rad>
-
-=item * AnnoCPAN: Annotated CPAN documentation
-
-L<http://annocpan.org/dist/App-Rad>
-
-=item * CPAN Ratings
-
-L<http://cpanratings.perl.org/d/App-Rad>
-
-=item * Search CPAN
-
-L<http://search.cpan.org/dist/App-Rad>
-
-=back
-
 
 =head1 AUTHOR
 

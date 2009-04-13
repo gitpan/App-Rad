@@ -1,5 +1,11 @@
 Revision history for App-Rad
 
+1.01    2009/04/13
+        Fixed bug where single words inside :Help attribute (received as arrayref) were not dereferenced correctly.
+        Added $c->plugins() method, with an ordered list of loaded plugins
+        Added some plugin tests.
+        Updated documentation.
+
 1.00    2009/04/10
         Added plugins support!
         Getopt::Long requirement is specific to getopt() method.

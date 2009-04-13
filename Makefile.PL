@@ -17,6 +17,7 @@ WriteMakefile(
         'Getopt::Long'        => 2.36,
         'Carp'                => 0,
         'File::Temp'          => 0,
+        'FindBin'             => 0,
         'Attribute::Handlers' => 0,
         'B::Deparse'          => 0,
     },

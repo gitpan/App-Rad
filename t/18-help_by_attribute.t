@@ -20,6 +20,8 @@ sub bar :Help(help for bar) { return 'bar'; }
 sub baz
 :Help(yet another help) { return 'baz'; }
 
+sub singleword :Help(single) { return 'single word inside help' }
+
 EOT
 
     print $fh $contents;
@@ -29,10 +31,11 @@ my $helptext = <<"EOHELP";
 Usage: $filename command [arguments]
 
 Available Commands:
-    bar \thelp for bar
-    baz \tyet another help
-    foo \thelp for foo
-    help\tshow syntax and available commands
+    bar       \thelp for bar
+    baz       \tyet another help
+    foo       \thelp for foo
+    help      \tshow syntax and available commands
+    singleword\tsingle
 
 EOHELP
 

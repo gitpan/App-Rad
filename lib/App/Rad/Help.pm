@@ -3,7 +3,7 @@ use Attribute::Handlers;
 use strict;
 use warnings;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 sub load {
     my ($self, $c) = @_;
@@ -52,6 +52,8 @@ sub UNIVERSAL::Help :ATTR(CODE) {
      my ($package, $symbol, $ref, $attr, $data, $phase, $filename, $linenum) = @_;
 
     if ($package eq 'main') {
+        # If data is a single word, it is received as an array ref. Don't ask.
+        $data = join(' ', @$data) if ref($data) eq 'ARRAY';
         $help_attr{ *{$symbol}{NAME} } = $data;
     }
 }

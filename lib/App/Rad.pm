@@ -5,7 +5,7 @@ use Carp                ();
 use warnings;
 use strict;
 
-our $VERSION = '1.00';
+our $VERSION = '1.01';
 {
 
 #========================#
@@ -22,6 +22,7 @@ sub _init {
     $c->{'_options'} = {};
     $c->{'_stash'  } = {};
     $c->{'_config' } = {};
+    $c->{'_plugins'} = [];
 
     # this internal variable holds
     # references to all special
@@ -66,30 +67,39 @@ sub _init {
 
 sub import {
     my $class = shift;
-    @OPTIONS = @_;
+    @OPTIONS  = @_;
 }
 
 sub load_plugin {
-    my $c = shift;
+    my $c      = shift;
     my $plugin = shift;
-	my $class = ref $c;
-	
-	unless ($plugin =~ s{^\+}{} ) {
-		$plugin = "App::Rad::Plugin::$plugin";
-	}
-	eval "use $plugin ()";
-    Carp::croak "error loading plugin '$plugin': $@\n"
-        if $@;
-    my %methods = _get_subs_from($plugin);
+	my $class  = ref $c;
 
-    Carp::croak "No methods found for plugin '$plugin'\n"
+    my $plugin_fullname = '';    
+	if ($plugin =~ s{^\+}{} ) {
+		$plugin_fullname = $plugin;
+	}
+    else {
+        $plugin_fullname = "App::Rad::Plugin::$plugin";
+    }
+	eval "use $plugin_fullname ()";
+    Carp::croak "error loading plugin '$plugin_fullname': $@\n"
+        if $@;
+    my %methods = _get_subs_from($plugin_fullname);
+
+    Carp::croak "No methods found for plugin '$plugin_fullname'\n"
 		unless keys %methods > 0;
 
 	no strict 'refs';
 	foreach my $method (keys %methods) {
+        # don't add plugin's internal methods
         next if substr ($method, 0, 1) eq '_';
+
 		*{"$class\::$method"} = $methods{$method};
-		$c->debug("-- method '$method' added [$plugin]");
+		$c->debug("-- method '$method' added [$plugin_fullname]");
+
+        # fill $c->plugins()
+        push @{ $c->{'_plugins'} }, $plugin;
 	}
 }
 
@@ -438,8 +448,14 @@ sub execute {
 
 sub argv    { return $_[0]->{'ARGV'}     }
 sub options { return $_[0]->{'_options'} }
-sub stash   { return $_[0]->{'_stash'}   }    
+sub stash   { return $_[0]->{'_stash'}   }   
 sub config  { return $_[0]->{'_config'}  }
+
+# $c->plugins is sort of "read-only" externally
+sub plugins { 
+    my @plugins = @{$_[0]->{'_plugins'}};
+    return @plugins;
+}
 
 
 sub getopt {
@@ -459,8 +475,7 @@ sub getopt {
 }
 
 sub debug {
-    my $c = shift;
-    if ($c->{'debug'}) {
+    if (shift->{'debug'}) {
         print "[debug]   @_\n";
     }
 }
@@ -519,7 +534,7 @@ App::Rad - Rapid (and easy!) creation of command line applications
 
 =head1 VERSION
 
-Version 1.00
+Version 1.01
 
 =head1 SYNOPSIS
 
@@ -1086,6 +1101,13 @@ Will print the given message on screen only if the debug flag is enabled:
 
     use App::Rad  qw( debug );
 
+Note that, if debug is enabled, App::Rad itself will print several debug messages stating its current flow, so you can easily find out where everything is happening.
+
+
+=head2 $c->plugins()
+
+Returns a list of all loaded plugins, in the order in which they were loaded.
+
 
 =head2 $c->load_plugin( I<PLUGIN NAME> )
 
@@ -1213,7 +1235,7 @@ App::Rad depends only on 5.8 core modules (Carp for errors, Getopt::Long for "$c
 
 If you have Perl::Tidy installed, the "include" command will tidy up your code before inclusion.
 
-The test suite depends on Test::More and File::Temp, both also core modules.
+The test suite depends on Test::More, FindBin and File::Temp, also core modules.
 
 
 =head1 INCOMPATIBILITIES
@@ -1236,7 +1258,7 @@ You can find documentation for this module with the perldoc command.
 
 Although this Module comes without any warraties whatsoever (see DISCLAIMER below), I try really hard to provide some quality assurance for the users. This means I not only try to close all reported bugs in the minimum amount of time but I also try to find some on my own.
 
-This version of App::Rad comes with 157 tests and I keep my eye constantly on CPAN Testers L<http://www.cpantesters.org/show/App-Rad.html> to ensure it passes all of them, in all platforms. You can send me your own App::Rad tests if you feel I'm missing something and I'll hapilly add them to the distribution.
+This version of App::Rad comes with 166 tests and I keep my eye constantly on CPAN Testers L<http://www.cpantesters.org/show/App-Rad.html> to ensure it passes all of them, in all platforms. You can send me your own App::Rad tests if you feel I'm missing something and I'll hapilly add them to the distribution.
 
 Since I take user's feedback very seriously, I really hope you send me any wishlist/TODO you'd like App::Rad to have (please try to send them via RT so other people can give their own suggestions).
 
@@ -1275,8 +1297,6 @@ This is a small list of features I plan to add in the near future (in no particu
 =item * Loadable commands (in an external container file)
 
 =item * Modularized commands (similar to App::Cmd::Commands ?)
-
-=item * Output Templating
 
 =item * app-starter
 
