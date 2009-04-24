@@ -4,6 +4,7 @@ Makefile.PL
 README
 lib/App/Rad.pm
 lib/App/Rad/Plugin.pod
+lib/App/Rad/Config.pm
 lib/App/Rad/Help.pm
 lib/App/Rad/Include.pm
 lib/App/Rad/Exclude.pm

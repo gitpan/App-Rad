@@ -1,5 +1,8 @@
 Revision history for App-Rad
 
+1.03    2009/04/24
+        App::Rad::Config.pm was not in the MANIFEST
+
 1.02    2009/04/24
         fixed bug where $c->getopt would not set $c->argv correctly and change @ARGV instead (reported by FCO)
         load_config() factored out, now in App::Rad::Config;
