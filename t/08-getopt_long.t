@@ -1,21 +1,18 @@
-use Test::More tests => 8;
+use Test::More tests => 17;
 
 SKIP: {
     eval "use Getopt::Long 2.36";
-    skip "Getopt::Long 2.36 or higher not installed", 8, if $@;
+    skip "Getopt::Long 2.36 or higher not installed", 17, if $@;
 
-    eval "use File::Temp qw{ tempfile tempdir } ";
-    skip "File::Temp not installed", 8 if $@;
+    use App::Rad;
 
-    my ($fh, $filename) = tempfile(UNLINK => 1);
-    diag("using temporary program file '$filename' to test functionality");
+    @ARGV = qw(herculoids --igoo=ape -t 4 --zok=3.14 --glup -abc);
 
-    my $contents = <<'EOT';
-use App::Rad;
-App::Rad->run();
-
-sub pre_process {
-    my $c = shift;
+    # kids, don't try this at home...
+    my $c = {};
+    bless $c, 'App::Rad';
+    $c->_init();
+    $c->_get_input();
 
     $c->getopt(
             'igoo|i=s',
@@ -27,38 +24,31 @@ sub pre_process {
             'b',
             'c',
         );
-}
 
+    is($c->cmd, 'herculoids', 'command name should be set');
+    is(scalar @ARGV, 6, '@ARGV should have 6 elements');
+    is(scalar @{$c->argv}, 0, '$c->argv should have been consumed');
+    is(keys %{$c->options}, 7, '$c->options should have 7 elements');
+    is_deeply(\@ARGV, ['--igoo=ape', '-t', '4', '--zok=3.14',
+                       '--glup', '-abc'
+                      ],
+              '@ARGV should have just the passed arguments, not the command name'
+             );
 
-sub herculoids {
-    my $c = shift;
+    is($c->options->{'igoo'}, 'ape', '--igoo should be set');
+    ok(defined $c->options->{'tundro'}, '--tundro should be defined');
+    ok(!defined $c->options->{'t'}, '-t should have become --tundro');
+    is($c->options->{'tundro'}, 4, '--tundro should be set');
 
-    my $ret = scalar (keys (%{$c->options}));
+    ok(defined $c->options->{'zok'}, '--zok should be defined');
+    is($c->options->{'zok'}, 3.14, '--zok should be set');
+    ok(!defined $c->options->{'z'}, '-z should not be set');
 
-    foreach (sort keys %{$c->options}) {
-        $ret .= ' ' . $_ . ':' . $c->options->{$_};   # key:value
-    }
+    ok(defined $c->options->{'glup'}, '--glup should be defined');
+    ok(!defined $c->options->{'glip'}, '--glip should not be defined');
 
-    return $ret . ' '; # space required to avoid
-                       # testing the "\n" from post_process()
-}
-EOT
+    ok(defined $c->options->{'a'}, '-a should be defined');
+    ok(defined $c->options->{'a'}, '-a should be defined');
+    ok(defined $c->options->{'a'}, '-a should be defined');
 
-    print $fh $contents;
-    close $fh;
-   
-    my $ret = `$^X $filename herculoids --igoo=ape -t 4 --zok=3.14 --glup -abc`;
-
-    my @ret = split / /, $ret;
-
-    is($ret[0], 7, 'number of options');
-
-    # options testing (sorted alfabetically)
-    is($ret[1], 'a:1');
-    is($ret[2], 'b:1');
-    is($ret[3], 'c:1');
-    is($ret[4], 'glup:1');
-    is($ret[5], 'igoo:ape');
-    is($ret[6], 'tundro:4');
-    is($ret[7], 'zok:3.14');
 }

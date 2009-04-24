@@ -1,68 +1,35 @@
-use Test::More tests => 17;
+use Test::More tests => 16;
 
-SKIP: {
-    eval "use File::Temp qw{ tempfile tempdir }";
-    skip "File::Temp not installed", 13 if $@;
-
-    my ($fh, $filename) = tempfile(UNLINK => 1);
-    diag("using temporary program file '$filename' to test functionality");
-
-    my $contents = <<'EOT';
 use App::Rad;
-App::Rad->run();
 
-sub test1 {
-    my $c = shift;
+@ARGV = qw(commandname bla -abc --def --test1=2 --test2=test ble);
 
-    my $ret = scalar (@ARGV) . ' ';
-    $ret .= join (' ', @ARGV) . ' ';
+# kids, don't try this at home...
+my $c = {};
+bless $c, 'App::Rad';
+$c->_init();
+$c->_get_input();
 
-    $ret .= scalar @{$c->argv} . ' ';
+is(scalar @ARGV, 6, '@ARGV should have 6 elements');
+is(scalar @{$c->argv}, 2, '$c->argv should have 2 arguments');
+is(keys %{$c->options}, 6, '$c->options should have 6 elements');
 
-    $ret .= join (' ', @{$c->argv}) . ' ';
+is($c->cmd, 'commandname', 'command name should be set');
 
-    $ret .= scalar (keys (%{$c->options}));
+is_deeply(\@ARGV, ['bla', '-abc', '--def', '--test1=2', '--test2=test', 'ble'], 
+   '@ARGV should have just the passed arguments, not the command name'
+  );
 
-    foreach (sort keys %{$c->options}) {
-        $ret .= ' ' . $_;
-        if ($c->options->{$_}) {
-            $ret .= ':' . $c->options->{$_};   # key:value
-        }
-    }
+is_deeply($c->argv, ['bla', 'ble'], '$c->argv arguments should be consistent');
+ok(defined $c->options->{'a'}, "'-a' should be set");
+ok(defined $c->options->{'b'}, "'-a' should be set");
+ok(defined $c->options->{'c'}, "'-a' should be set");
 
-    return $ret . ' '; # space required to avoid
-                       # testing the "\n" from post_process()
-}
-EOT
+ok(!defined $c->options->{'abc'}, "'--abc' should *not* be set");
+ok(!defined $c->options->{'d'}  , "'-d' should *not* be set");
+ok(!defined $c->options->{'e'}  , "'-e' should *not* be set");
+ok(!defined $c->options->{'f'}  , "'-f' should *not* be set");
 
-    print $fh $contents;
-    close $fh;
-   
-    my $ret = `$^X $filename test1 bla -abc --def --test1=2 --test2=test ble`;
-
-    my @ret = split / /, $ret;
-
-    is($ret[0], 6, 'number of elements in @ARGV');
-    is($ret[1], 'bla');
-    is($ret[2], '-abc');
-    is($ret[3], '--def');
-    is($ret[4], '--test1=2');
-    is($ret[5], '--test2=test');
-    is($ret[6], 'ble');
-
-    is($ret[7], 2, 'number of elements in $c->argv');
-
-    # argv testing
-    is($ret[8], 'bla');
-    is($ret[9], 'ble');
-
-    is($ret[10], 6, 'number of options');
-
-    # options testing (sorted alfabetically)
-    is($ret[11], 'a');
-    is($ret[12], 'b');
-    is($ret[13], 'c');
-    is($ret[14], 'def');
-    is($ret[15], 'test1:2');
-    is($ret[16], 'test2:test');
-}
+ok(defined $c->options->{'def'}, "'--def' should be set");
+is($c->options->{'test1'}, 2, "'--test1' should be set to '2'");
+is($c->options->{'test2'}, 'test', "'--test2' should be set to 'test'");

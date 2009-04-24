@@ -13,8 +13,8 @@ App::Rad->run();
 
 sub test1 {
     my $c = shift;
-    if ($c->{'ARGV'}->[0]) {
-        return 'got ' . $c->{'ARGV'}->[0];
+    if ($c->argv->[0]) {
+        return 'got ' . $c->argv->[0];
     }
     else {
         return 'my test #1';

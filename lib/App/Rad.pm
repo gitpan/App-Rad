@@ -5,7 +5,7 @@ use Carp                ();
 use warnings;
 use strict;
 
-our $VERSION = '1.01';
+our $VERSION = '1.02';
 {
 
 #========================#
@@ -18,7 +18,7 @@ sub _init {
     my $c = shift;
 
     # instantiate references for the first time
-    $c->{'ARGV'    } = [];
+    $c->{'_ARGV'    } = [];
     $c->{'_options'} = {};
     $c->{'_stash'  } = {};
     $c->{'_config' } = {};
@@ -200,33 +200,8 @@ sub _tinygetopt {
 #========================#
 
 sub load_config {
-    my ($c, @files) = @_;
-
-    foreach my $filename (@files) {
-
-        $c->debug("loading configuration from $filename");
-        open my $CONFIG, '<', $filename
-            or Carp::croak "error opening $filename: $!\n";
-
-        while (<$CONFIG>) {
-            chomp;
-            s/#.*//;
-            s/^\s+//;
-            s/\s+$//;
-            next unless length;
-
-            if ( m/^([^\=\:\s]+)        # key
-                (?:                     # (value is optional)
-                   (?:\s*[\=\:]\s*|\s+) # separator ('=', ':' or whitespace)
-                   ([^\=\:\s]+)         # value
-                )?
-                /x
-            ) {
-                $c->config->{$1} = $2;
-            }
-        }
-        close $CONFIG;
-    }
+    require App::Rad::Config;
+    App::Rad::Config::load_config(@_);
 }
 
 
@@ -446,7 +421,7 @@ sub execute {
     $c->{'output'} = undef;
 }
 
-sub argv    { return $_[0]->{'ARGV'}     }
+sub argv    { return $_[0]->{'_ARGV'}     }
 sub options { return $_[0]->{'_options'} }
 sub stash   { return $_[0]->{'_stash'}   }   
 sub config  { return $_[0]->{'_config'}  }
@@ -471,7 +446,12 @@ sub getopt {
     my $parser = new Getopt::Long::Parser;
     $parser->configure( qw(bundling) );
 
-    return $parser->getoptions($c->{'_options'}, @options);
+    my @tARGV = @ARGV; # we gotta stick to our API
+    my $ret = $parser->getoptions($c->{'_options'}, @options);
+    @{$c->argv} = @ARGV;
+    @ARGV = @tARGV;
+
+    return $ret;
 }
 
 sub debug {
@@ -534,7 +514,7 @@ App::Rad - Rapid (and easy!) creation of command line applications
 
 =head1 VERSION
 
-Version 1.01
+Version 1.02
 
 =head1 SYNOPSIS
 
@@ -792,11 +772,7 @@ When someone types in a command, she may pass some arguments to it. Those argume
 
 =head3 @ARGV
 
-Perl's @ARGV array has all the arguments passed to your command, without the command name (use C<< $c->cmd >> for this) and without any processing (unless you explicitly use C<< $c->getopt >>, see below). Since the command itself won't be in the @ARGV parameters, you can use it in each command as if they were stand-alone programs.
-
-=head3 $c->argv
-
-The array reference C<< $c->argv >> contains every argument passed to your command that does B<not> start with a dash (-). You can use it to retrieve arguments that were not processed by C<< $c->options >> (see below).
+Perl's @ARGV array has all the arguments passed to your command, without the command name (use C<< $c->cmd >> for this) and without any processing (even if you explicitly use C<< $c->getopt >>, which will change $c->argv instead, see below). Since the command itself won't be in the @ARGV parameters, you can use it in each command as if they were stand-alone programs.
 
 =head3 $c->options
 
@@ -823,6 +799,10 @@ And now you can call your 'roll' command like:
     [user@host]$ ./myapp.pl roll --faces=6 --times=2
 
 Note that App::Rad does not control which arguments can or cannot be passed: they are all parsed into C<< $c->options >> and it's up to you to use whichever you want. For a more advanced use and control, see the C<< $c->getopt >> method below.
+
+=head3 $c->argv
+
+The array reference C<< $c->argv >> contains every argument passed to your command that have B<not> been parsed into C<< $c->options >>. This is usually a list of every provided argument that didn't start with a dash (-), unless you've called C<< $c->getopt >> and used something like 'param=s' (again, see below).
 
 =head3 $c->getopt (Advanced Getopt usage)
 
@@ -853,7 +833,7 @@ B<< So, in order to manipulate and use any arguments, remember: >>
 
 =item * Non-processed arguments (the ones C<< $c->options >> didn't catch) are in $c->argv
 
-=item * You can use C<< $c->getopt >> to have C<< Getopt::Long >> parse your arguments
+=item * You can use C<< $c->getopt >> to have C<< Getopt::Long >> parse your arguments (it will B<not> change C<< @ARGV >>)
 
 =back
 
@@ -941,8 +921,6 @@ Returns a valid name for a command (i.e. a name slot that's not been used by you
 
 =head2 $c->load_config( I<< FILE (FILE2, FILE3, ...) >> )
 
-B<NOTE: This will most likely become a separate App::Rad::Extensions::Config (or something like that)>
-
 This method lets you easily load into your program one or more configuration files written like this:
 
     # comments and blank lines are discarded
@@ -953,8 +931,6 @@ This method lets you easily load into your program one or more configuration fil
 
 
 =head2 $c->config
-
-B<NOTE: This will most likely become a separate App::Rad::Extensions::Config (or something like that)>
 
 Returns a hash reference with any loaded config values (see C<< $c->load_config() >> above).
 
@@ -1258,7 +1234,7 @@ You can find documentation for this module with the perldoc command.
 
 Although this Module comes without any warraties whatsoever (see DISCLAIMER below), I try really hard to provide some quality assurance for the users. This means I not only try to close all reported bugs in the minimum amount of time but I also try to find some on my own.
 
-This version of App::Rad comes with 166 tests and I keep my eye constantly on CPAN Testers L<http://www.cpantesters.org/show/App-Rad.html> to ensure it passes all of them, in all platforms. You can send me your own App::Rad tests if you feel I'm missing something and I'll hapilly add them to the distribution.
+This version of App::Rad comes with 170 tests and I keep my eye constantly on CPAN Testers L<http://www.cpantesters.org/show/App-Rad.html> to ensure it passes all of them, in all platforms. You can send me your own App::Rad tests if you feel I'm missing something and I'll hapilly add them to the distribution.
 
 Since I take user's feedback very seriously, I really hope you send me any wishlist/TODO you'd like App::Rad to have (please try to send them via RT so other people can give their own suggestions).
 

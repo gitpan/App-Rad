@@ -1,5 +1,10 @@
 Revision history for App-Rad
 
+1.02    2009/04/24
+        fixed bug where $c->getopt would not set $c->argv correctly and change @ARGV instead (reported by FCO)
+        load_config() factored out, now in App::Rad::Config;
+        Updated (+fixed) documentation.
+
 1.01    2009/04/13
         Fixed bug where single words inside :Help attribute (received as arrayref) were not dereferenced correctly.
         Added $c->plugins() method, with an ordered list of loaded plugins
