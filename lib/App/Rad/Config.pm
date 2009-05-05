@@ -19,7 +19,7 @@ sub load_config {
             if ( m/^([^\=\:\s]+)        # key
                 (?:                     # (value is optional)
                    (?:\s*[\=\:]\s*|\s+) # separator ('=', ':' or whitespace)
-                   ([^\=\:\s]+)         # value
+                   (.+)                 # value
                 )?
                 /x
             ) {

@@ -5,7 +5,7 @@ use Carp                ();
 use warnings;
 use strict;
 
-our $VERSION = '1.03';
+our $VERSION = '1.04';
 {
 
 #========================#
@@ -177,14 +177,18 @@ sub _tinygetopt {
         if ( m/^\-([^\-\=]+)$/o) {
             my @args = split //, $1;
             foreach (@args) {
-                $c->options->{$_} = '';
+				if ($c->options->{$_}) {
+					$c->options->{$_}++;
+				}
+				else {
+					$c->options->{$_} = 1;
+				}
             }
         }
         # long option: --name or --name=value
         elsif (m/^\-\-([^\-\=]+)(?:\=(.+))?$/o) {
-            $c->options->{$1} = $2 
-                              ? $2 
-                              : ''
+            $c->options->{$1} = $2 ? $2 
+			                  : 1
                               ;
         }
         else {
@@ -340,9 +344,9 @@ sub is_command {
            );
 }
 
-sub command { return cmd(@_) }
-sub cmd {
-    return $_[0]->{'cmd'};
+sub command :lvalue { cmd(@_) }
+sub cmd :lvalue {
+    $_[0]->{'cmd'};
 }
 
 
@@ -477,7 +481,7 @@ sub output {
 #     CONTROL FUNCTIONS   #
 #=========================#
 
-sub setup { $_[0]->register_commands() }
+sub setup { $_[0]->register_commands( {-ignore_prefix => '_'} ) }
 
 sub teardown {}
 
@@ -514,7 +518,7 @@ App::Rad - Rapid (and easy!) creation of command line applications
 
 =head1 VERSION
 
-Version 1.03
+Version 1.04
 
 =head1 SYNOPSIS
 
@@ -778,7 +782,7 @@ Perl's @ARGV array has all the arguments passed to your command, without the com
 
 App::Rad lets you automatically retrieve any POSIX syntax command line options (I<getopt-style>) passed to your command via the $c->options method. This method returns a hash reference with keys as given parameters and values as... well... values. The 'options' method automatically supports two simple argument structures:
 
-Extended (long) option. Translates C<< --parameter or --parameter=value >> into C<< $c->options->{parameter} >>
+Extended (long) option. Translates C<< --parameter or --parameter=value >> into C<< $c->options->{parameter} >>. If no value is supplied, it will be set to 1.
 
 Single-letter option. Translates C<< -p >> into C<< $c->options->{p} >>.
 
@@ -799,6 +803,17 @@ And now you can call your 'roll' command like:
     [user@host]$ ./myapp.pl roll --faces=6 --times=2
 
 Note that App::Rad does not control which arguments can or cannot be passed: they are all parsed into C<< $c->options >> and it's up to you to use whichever you want. For a more advanced use and control, see the C<< $c->getopt >> method below.
+
+Also note that single-letter options will be set to 1. However, if a user types them more than once, the value will be incremented accordingly. For example, if a user calls your program like so:
+
+   [user@host]$ ./myapp.pl some_command -vvv
+
+or
+
+   [user@host]$ ./myapp.pl some_command -v -v -v
+
+then, in both cases, C<< $c->options->{v} >> will be set to 3. This will let you easily keep track of how many times any given option was chosen, and still let you just check for definedness if you don't care about that. 
+
 
 =head3 $c->argv
 
@@ -969,7 +984,7 @@ As such, this method may be removed in future versions. You have been warned!
 
 =head2 $c->register_commands()
 
-This method, usually called during setup(), tells App::Rad to register subroutines as valid commands. If called without any parameters, it will register B<all> subroutines in your main program as valid commands (note that this is the default behavior of App::Rad). You can easily change this behavior using some of the options below:
+This method, usually called during setup(), tells App::Rad to register subroutines as valid commands. If called without any parameters, it will register B<all> subroutines in your main program as valid commands (note that the default behavior of App::Rad is to ignore subroutines starting with an underscore '_'). You can easily change this behavior using some of the options below:
 
 =head3 Adding single commands
 
@@ -1025,7 +1040,7 @@ For example:
     sub bar  {}  # will become a command
     sub _baz {}  # will *NOT* become a command
 
-This way you can easily segregate between commands and helper functions, making your code even more reusable without jeopardizing the command line interface.
+This way you can easily segregate between commands and helper functions, making your code even more reusable without jeopardizing the command line interface (As of version 1.04, ignoring commands with underscore '_' prefixes is also the default App::Rad behavior).
 
 
 =head3 Putting it all together
@@ -1038,7 +1053,7 @@ You can combine some of the options above to have even more flexibility:
             { bar => 'all your command line are belong to us' },
     );
 
-The code above will register as commands all subs with names ending in 'foo', but it B<will> register the 'foo' sub as well. It will also give the 'bar' command the help string. This behavior is handy for registering several commands and having a few exceptions, or to add your commands and only have inline help for a few of them (as you see fit).
+The code above will register as commands all subs with names B<not> ending in 'foo', but it B<will> register the 'foo' sub as well. It will also give the 'bar' command the help string. This behavior is handy for registering several commands and having a few exceptions, or to add your commands and only have inline help for a few of them (as you see fit).
 
 You don't have to worry about the order of your elements passed, App::Rad will figure them out for you in a DWIM fashion.
 
@@ -1234,7 +1249,7 @@ You can find documentation for this module with the perldoc command.
 
 Although this Module comes without any warraties whatsoever (see DISCLAIMER below), I try really hard to provide some quality assurance for the users. This means I not only try to close all reported bugs in the minimum amount of time but I also try to find some on my own.
 
-This version of App::Rad comes with 170 tests and I keep my eye constantly on CPAN Testers L<http://www.cpantesters.org/show/App-Rad.html> to ensure it passes all of them, in all platforms. You can send me your own App::Rad tests if you feel I'm missing something and I'll hapilly add them to the distribution.
+This version of App::Rad comes with 183 tests and I keep my eye constantly on CPAN Testers L<http://www.cpantesters.org/show/App-Rad.html> to ensure it passes all of them, in all platforms. You can send me your own App::Rad tests if you feel I'm missing something and I'll hapilly add them to the distribution.
 
 Since I take user's feedback very seriously, I really hope you send me any wishlist/TODO you'd like App::Rad to have (please try to send them via RT so other people can give their own suggestions).
 
@@ -1260,6 +1275,10 @@ L<http://cpanratings.perl.org/d/App-Rad>
 L<http://search.cpan.org/dist/App-Rad>
 
 =back
+
+=head2 IRC
+
+   #app-rad  on irc.perl.org
 
 
 =head1 TODO
@@ -1288,6 +1307,19 @@ This is a small list of features I plan to add in the near future (in no particu
 =head1 AUTHOR
 
 Breno G. de Oliveira, C<< <garu at cpan.org> >>
+
+
+=head1 CONTRIBUTORS
+
+(in alphabetical order)
+
+Ben Hengst
+
+Fernando Correa
+
+Flavio Glock
+
+Thanks to everyone for contributing! Please let me know if I've skipped your name by accident.
 
 
 =head1 ACKNOWLEDGEMENTS

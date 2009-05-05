@@ -17,6 +17,7 @@ t/03-default_override.t
 t/03.5-default_and_invalid.t
 t/04-help_override.t
 t/05-commands.t
+t/05-commands-set.t
 t/05.5-commands_with_args.t
 t/06-pre_post_tear.t
 t/07-argv_and_opt.t
@@ -25,6 +26,7 @@ t/09-stash.t
 t/10-controller_methods.t
 t/11-config.t
 t/12-register_commands.t
+t/12-register_commands-alt.t
 t/13-register_commands2.t
 t/14-register_commands3.t
 t/15-register_commands4.t

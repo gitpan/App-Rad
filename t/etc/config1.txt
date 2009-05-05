@@ -4,9 +4,11 @@ dois        two
 tres:three
 
 
-quatro   :    four
+quatro   :    four   
 # coment=yes!
 cinco=five   # inline comments too!
                 
 seis     =       six
+
+text: the quick brown fox jumps over the lazy dog        
 

@@ -1,10 +1,22 @@
 Revision history for App-Rad
 
+1.04	2009/05/04
+
+		***MINOR API CHANGE*** => default is now to register only subs that do *not* start with an underscore
+
+		Fixed documentation (bug reported by FCO)
+		Single (no value) options are now stored in $c->options with '1' value, so you don't have to explicitly use 'defined' to test them.
+		Increment single options' value if argument is passed more than one time (so -v -v will make $c->options->{v} == 2)
+		Now configuration files can have whole strings as options
+		Now $c->cmd is an lvalue and can be changed w/o fiddling with internals
+		Added CONTRIBUTORS section in POD
+		Updated test suite
+
 1.03    2009/04/24
         App::Rad::Config.pm was not in the MANIFEST
 
 1.02    2009/04/24
-        fixed bug where $c->getopt would not set $c->argv correctly and change @ARGV instead (reported by FCO)
+        Fixed bug where $c->getopt would not set $c->argv correctly and change @ARGV instead (reported by FCO)
         load_config() factored out, now in App::Rad::Config;
         Updated (+fixed) documentation.
 
