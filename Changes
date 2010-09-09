@@ -1,5 +1,69 @@
 Revision history for App-Rad
 
+1.05_01	2010-09-09
+
+        *** KNOWN BUG *** 
+		@ARGV is left unchanged. As a result, $c->getopt no longer works. 
+		This should be fixed by the time 1.05 comes out.
+		******************
+
+		*** API CHANGE *** 
+		$c->execute does not call 'default' or 'invalid' commands anymore if
+        it can't find the command name. Rad itself still does, but via 
+        parse_input. You don't have to worry about this unless you make 
+        explicit calls to $c->execute.
+		******************
+
+		*** API CHANGE *** 
+		** (also note we are voting invalid() for complete removal  **
+		** if you can't live without it, please email me or join us **
+		** in #app-rad at irc.perl.org )                            **
+		**************************************************************
+		if you redefine invalid(), note the invalid command is no longer
+		passed as $c->cmd. This was inconsistent, being it's not an actual
+		command. Now, the invalid subroutine receives 2 arguments: $c and
+		the offending command, so you can do:
+		
+		sub invalid {
+		    my ($c, $invalid_command) = (@_);
+		    ...
+		}
+		
+		all other subroutines keep receiving just $c as argument.
+		******************
+
+		*** API CHANGE *** 
+		the rarely used create_command_name() method was removed from Rad, or
+		rather -moved- into App::Rad::Include, so if you have code using that,
+		just change your calls from $c->create_command_name() to 
+		App::Rad::Include::create_command_name($c)
+		But you most likely never even heard of it, so don't worry.
+		******************
+		
+	
+        - $c->path and $c->realpath new auxiliary methods for giving you the
+          app's bin path and realbin path (via FindBin core module) 
+        - Added initial Shell-like behavior support via 'App::Rad->shell'
+          (thanks AWNSTUDIO for making major tests and improvements on the 
+          first beta)
+		- Added support for defining specific command arguments and its 
+          attributes (thanks ZOSO for suggesting, everybody at #app-rad for 
+          discussing its API, and FCO for implementing the first patch)
+		- Fixed bug where --option=0 was being set to 1 and not to 0, as 
+          expected (FCO)
+        - Fixed bug where plugin names were added more than once to the 
+          plugins() list
+		- Created experimental App::Rad::Tester to help testing apps created 
+          with Rad.
+		- Updated documentation
+		- Added dynamic type setting for values that are set automatically 
+          [al newkirk]
+		- Added default value support for argument options default setting 
+          [al newkirk]
+		- Added argument conflict detection [al newkirk]
+		- Added stash storing support [al newkirk]
+		- Updated alias support [al newkirk]
+
 1.04	2009/05/04
 
 		***MINOR API CHANGE*** => default is now to register only subs that do *not* start with an underscore
