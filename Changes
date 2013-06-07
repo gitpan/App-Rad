@@ -1,126 +1,76 @@
 Revision history for App-Rad
 
-1.05_01	2010-09-09
+1.05    2013-06-06
+ 
+        *** YAPC::NA mainenance release ***
+        - As a lot of App::Rad users are aware, the framework has gone
+          through a lot of rethinking in order to be more easily
+          maintainable and expandable, which requires a big rewrite, some
+          back-incompat decisions and a lot of time which I have failed to
+          give in the past few years. Because of this, we have been under
+          a long code freeze which I hope to end in the future. Until then
+          new releases will be made only for bugfixes, like this one.
+        - bugfix: --someoption=0 now sets options->{someoption} to 0
+          instead of 1 (ironcamel++)
+        - changelog updated to follow the CPAN Changes spec more closely.
 
-        *** KNOWN BUG *** 
-		@ARGV is left unchanged. As a result, $c->getopt no longer works. 
-		This should be fixed by the time 1.05 comes out.
-		******************
-
-		*** API CHANGE *** 
-		$c->execute does not call 'default' or 'invalid' commands anymore if
-        it can't find the command name. Rad itself still does, but via 
-        parse_input. You don't have to worry about this unless you make 
-        explicit calls to $c->execute.
-		******************
-
-		*** API CHANGE *** 
-		** (also note we are voting invalid() for complete removal  **
-		** if you can't live without it, please email me or join us **
-		** in #app-rad at irc.perl.org )                            **
-		**************************************************************
-		if you redefine invalid(), note the invalid command is no longer
-		passed as $c->cmd. This was inconsistent, being it's not an actual
-		command. Now, the invalid subroutine receives 2 arguments: $c and
-		the offending command, so you can do:
-		
-		sub invalid {
-		    my ($c, $invalid_command) = (@_);
-		    ...
-		}
-		
-		all other subroutines keep receiving just $c as argument.
-		******************
-
-		*** API CHANGE *** 
-		the rarely used create_command_name() method was removed from Rad, or
-		rather -moved- into App::Rad::Include, so if you have code using that,
-		just change your calls from $c->create_command_name() to 
-		App::Rad::Include::create_command_name($c)
-		But you most likely never even heard of it, so don't worry.
-		******************
-		
-	
-        - $c->path and $c->realpath new auxiliary methods for giving you the
-          app's bin path and realbin path (via FindBin core module) 
-        - Added initial Shell-like behavior support via 'App::Rad->shell'
-          (thanks AWNSTUDIO for making major tests and improvements on the 
-          first beta)
-		- Added support for defining specific command arguments and its 
-          attributes (thanks ZOSO for suggesting, everybody at #app-rad for 
-          discussing its API, and FCO for implementing the first patch)
-		- Fixed bug where --option=0 was being set to 1 and not to 0, as 
-          expected (FCO)
-        - Fixed bug where plugin names were added more than once to the 
-          plugins() list
-		- Created experimental App::Rad::Tester to help testing apps created 
-          with Rad.
-		- Updated documentation
-		- Added dynamic type setting for values that are set automatically 
-          [al newkirk]
-		- Added default value support for argument options default setting 
-          [al newkirk]
-		- Added argument conflict detection [al newkirk]
-		- Added stash storing support [al newkirk]
-		- Updated alias support [al newkirk]
-
-1.04	2009/05/04
+1.04	2009-05-04
 
 		***MINOR API CHANGE*** => default is now to register only subs that do *not* start with an underscore
 
-		Fixed documentation (bug reported by FCO)
-		Single (no value) options are now stored in $c->options with '1' value, so you don't have to explicitly use 'defined' to test them.
-		Increment single options' value if argument is passed more than one time (so -v -v will make $c->options->{v} == 2)
-		Now configuration files can have whole strings as options
-		Now $c->cmd is an lvalue and can be changed w/o fiddling with internals
-		Added CONTRIBUTORS section in POD
-		Updated test suite
+		- Fixed documentation (bug reported by FCO)
+		- Single (no value) options are now stored in $c->options with '1' value, so you don't have to explicitly use 'defined' to test them.
+		- Increment single options' value if argument is passed more than one time (so -v -v will make $c->options->{v} == 2)
+		- Now configuration files can have whole strings as options
+		- Now $c->cmd is an lvalue and can be changed w/o fiddling with internals
+		- Added CONTRIBUTORS section in POD
+		- Updated test suite
 
-1.03    2009/04/24
-        App::Rad::Config.pm was not in the MANIFEST
+1.03    2009-04-24
+        - App::Rad::Config.pm was not in the MANIFEST
 
-1.02    2009/04/24
-        Fixed bug where $c->getopt would not set $c->argv correctly and change @ARGV instead (reported by FCO)
-        load_config() factored out, now in App::Rad::Config;
-        Updated (+fixed) documentation.
+1.02    2009-04-24
+        - Fixed bug where $c->getopt would not set $c->argv correctly and change @ARGV instead (reported by FCO)
+        - load_config() factored out, now in App::Rad::Config;
+        - Updated (+fixed) documentation.
 
-1.01    2009/04/13
-        Fixed bug where single words inside :Help attribute (received as arrayref) were not dereferenced correctly.
-        Added $c->plugins() method, with an ordered list of loaded plugins
-        Added some plugin tests.
-        Updated documentation.
+1.01    2009-04-13
+        - Fixed bug where single words inside :Help attribute (received as arrayref) were not dereferenced correctly.
+        - Added $c->plugins() method, with an ordered list of loaded plugins
+        - Added some plugin tests.
+        - Updated documentation.
 
-1.00    2009/04/10
-        Added plugins support!
-        Getopt::Long requirement is specific to getopt() method.
-        Updated documentation.
+1.00    2009-04-10
+        - Added plugins support!
+        - Getopt::Long requirement is specific to getopt() method.
+        - Updated documentation.
 
-0.09    2008/12/22
-        Fixed dependencies check and documentation typo.
+0.09    2008-12-22
+        - Fixed dependencies check and documentation typo.
 
-0.08    2008/12/21
-        Added Help() attribute. Put help, include and exclude into separated modules. Updated documentation. More tests.
+0.08    2008-12-21
+        - Added Help() attribute. Put help, include and exclude into separated modules. Updated documentation. More tests.
 
-0.07    2008/11/12
-        SMALL API CHANGE: $c->register_commands()'s parameters ignore_prefix, ignore_suffix and ignore_regexp now *must* start with a dash.
-        $c->register_commands() helper method now can be used to include context documentation on available commands (RT #40578).
-        Updated documentation. More tests.
+0.07    2008-11-12
+        - SMALL API CHANGE: $c->register_commands()'s parameters ignore_prefix, ignore_suffix and ignore_regexp now *must* start with a dash.
+        - $c->register_commands() helper method now can be used to include context documentation on available commands (RT #40578).
+        - Updated documentation. More tests.
 
-0.06    2008/11/03
-        Fixed POD. Added license to Meta.yml. Added load_config and config methods.
+0.06    2008-11-03
+        - Fixed POD. Added license to Meta.yml. Added load_config and config methods.
 
-0.05    2008/10/28
-        Separated default() into default() and invalid(). Updated documentation. More tests.
+0.05    2008-10-28
+        - Separated default() into default() and invalid(). Updated documentation. More tests.
 
-0.04    2008/10/26
-        Fixed some testing issues. Added Stash, and improved TODO list.
+0.04    2008-10-26
+        - Fixed some testing issues. Added Stash, and improved TODO list.
 
-0.03    2008/10/22
-        Added getopt integration. First public release, on an unsuspecting world.
+0.03    2008-10-22
+        - Added getopt integration. First public release, on an unsuspecting world.
 
-0.02    2008/10/05
-        Added controller object and documentation.
+0.02    2008-10-05
+        - Added controller object and documentation.
 
-0.01    2008/09/20
-        First version, for internal use only.
+0.01    2008-09-20
+        - First version, for internal use only.
 

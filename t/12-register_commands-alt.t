@@ -1,8 +1,11 @@
 use Test::More tests => 7;
 
-use App::Rad::Tester;
+use App::Rad;
 
-my $c = get_controller;
+# kids, don't try this at home...
+my $c = {};
+bless $c, 'App::Rad';
+$c->_init();
 
 $c->register_commands({
         -ignore_prefix => '_',

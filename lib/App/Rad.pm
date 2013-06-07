@@ -1,13 +1,11 @@
 package App::Rad;
 use 5.006;
-use App::Rad::Parser;
-use App::Rad::Command;
 use App::Rad::Help;
-use Carp ();
+use Carp                ();
 use warnings;
 use strict;
 
-our $VERSION = '1.05_01';
+our $VERSION = '1.05';
 {
 
 #========================#
@@ -16,95 +14,93 @@ our $VERSION = '1.05_01';
 
 my @OPTIONS = ();
 
-# - "I'm so excited! Feels like I'm 14 again" (edenc on Rad)
 sub _init {
-	my $c = shift;
+    my $c = shift;
 
-	# instantiate references for the first time
-	$c->{'_ARGV'}    = [];
-	$c->{'_stash'}   = {};
-	$c->{'_config'}  = {};
-	$c->{'_plugins'} = [];
+    # instantiate references for the first time
+    $c->{'_ARGV'    } = [];
+    $c->{'_options'} = {};
+    $c->{'_stash'  } = {};
+    $c->{'_config' } = {};
+    $c->{'_plugins'} = [];
 
-	# this internal variable holds
-	# references to all special
-	# pre-defined control functions
-	$c->{'_functions'} = {
-	    'setup'        => \&setup,
-	    'pre_process'  => \&pre_process,
-	    'post_process' => \&post_process,
-	    'default'      => \&default,
-	    'invalid'      => \&invalid,
-	    'teardown'     => \&teardown,
-	};
-	
-	# create our standard global command
-	$c->register( '', sub {} );
-
-	#load extensions
-	App::Rad::Help->load($c);
-	foreach (@OPTIONS) {
-        if ( $_ eq 'include' ) {
+    # this internal variable holds
+    # references to all special
+    # pre-defined control functions
+    $c->{'_functions'} = {
+        'setup'        => \&setup,
+        'pre_process'  => \&pre_process,
+        'post_process' => \&post_process,
+        'default'      => \&default,
+        'invalid'      => \&invalid,
+        'teardown'     => \&teardown,
+    };
+    
+    #load extensions
+    App::Rad::Help->load($c);
+    foreach (@OPTIONS) {
+        if ($_ eq 'include') {
             eval 'use App::Rad::Include; App::Rad::Include->load($c)';
             Carp::croak 'error loading "include" extension.' if ($@);
-	    }
-	    elsif ( $_ eq 'exclude' ) {
+        }
+        elsif ($_ eq 'exclude') {
             eval 'use App::Rad::Exclude; App::Rad::Exclude->load($c)';
             Carp::croak 'error loading "exclude" extension.' if ($@);
-	    }
-	    elsif ( $_ eq 'debug' ) {
+        }
+        elsif ($_ eq 'debug') {
             $c->{'debug'} = 1;
-	    }
-	    else {
-            $c->load_plugin($_);
-	    }
+        }
+        else {
+        	$c->load_plugin($_);
+        }
 	}
-
-	# tiny cheat to avoid doing a lot of processing
-	# when not in debug mode. If needed, I'll create
-	# an actual is_debugging() method or something
-	if ( $c->{'debug'} ) {
-	    $c->debug( 'initializing: default commands are: '
-		  . join( ', ', $c->commands() ) );
-	}
+	
+    # tiny cheat to avoid doing a lot of processing
+    # when not in debug mode. If needed, I'll create
+    # an actual is_debugging() method or something
+    if ($c->{'debug'}) {
+        $c->debug('initializing: default commands are: '
+            . join ( ', ', $c->commands() )
+        );
+    }
 }
 
 sub import {
-	my $class = shift;
-	@OPTIONS = @_;
+    my $class = shift;
+    @OPTIONS  = @_;
 }
 
 sub load_plugin {
-	my $c      = shift;
-	my $plugin = shift;
+    my $c      = shift;
+    my $plugin = shift;
 	my $class  = ref $c;
 
-	my $plugin_fullname = '';
-	if ( $plugin =~ s{^\+}{} ) {
-	    $plugin_fullname = $plugin;
+    my $plugin_fullname = '';    
+	if ($plugin =~ s{^\+}{} ) {
+		$plugin_fullname = $plugin;
 	}
-	else {
-	    $plugin_fullname = "App::Rad::Plugin::$plugin";
-	}
+    else {
+        $plugin_fullname = "App::Rad::Plugin::$plugin";
+    }
 	eval "use $plugin_fullname ()";
-	Carp::croak "error loading plugin '$plugin_fullname': $@\n"
-	  if $@;
-	my %methods = _get_subs_from($plugin_fullname);
+    Carp::croak "error loading plugin '$plugin_fullname': $@\n"
+        if $@;
+    my %methods = _get_subs_from($plugin_fullname);
 
-	Carp::croak "No methods found for plugin '$plugin_fullname'\n"
-	  unless keys %methods > 0;
+    Carp::croak "No methods found for plugin '$plugin_fullname'\n"
+		unless keys %methods > 0;
 
 	no strict 'refs';
-	foreach my $method ( keys %methods ) {
+	foreach my $method (keys %methods) {
+        # don't add plugin's internal methods
+        next if substr ($method, 0, 1) eq '_';
 
-	    # don't add plugin's internal methods
-	    next if substr( $method, 0, 1 ) eq '_';
+		*{"$class\::$method"} = $methods{$method};
+		$c->debug("-- method '$method' added [$plugin_fullname]");
 
-	    *{"$class\::$method"} = $methods{$method};
-	    $c->debug("-- method '$method' added [$plugin_fullname]");
+        # fill $c->plugins()
+        push @{ $c->{'_plugins'} }, $plugin;
 	}
-    # add plugin to $c->plugins() list
-    push @{ $c->{'_plugins'} }, $plugin;
 }
 
 # this function browses a file's
@@ -114,174 +110,173 @@ sub load_plugin {
 # FIXME: if I create a sub here (Rad.pm) and
 # there is a global variable with that same name
 # inside the user's program (e.g.: sub ARGV {}),
-# the name will appear here as a command. It really
+# the name will appear here as a command. It really 
 # shouldn't...
 sub _get_subs_from {
-	my $package = shift || 'main';
-	$package .= '::';
+    my $package = shift || 'main';
+    $package .= '::';
+    
+    my %subs = ();
 
-	my %subs = ();
-
-	no strict 'refs';
-	while ( my ( $key, $value ) = ( each %{ *{$package} } ) ) {
-	    local (*SYMBOL) = $value;
-	    if ( defined $value && defined *SYMBOL{CODE} ) {
-		$subs{$key} = *{$value}{CODE};
-	    }
-	}
-	return %subs;
+    no strict 'refs';
+    while (my ($key, $value) = ( each %{*{$package}} )) {
+        local (*SYMBOL) = $value;
+        if ( defined $value && defined *SYMBOL{CODE} ) {
+            $subs{$key} = $value;
+        }
+    }
+    return %subs;
 }
+
 
 # overrides our pre-defined control
 # functions with any available
 # user-defined ones
 sub _register_functions {
-	my $c    = shift;
-	my %subs = _get_subs_from('main');
+    my $c = shift;
+    my %subs = _get_subs_from('main');
 
-	# replaces only if the function is
-	# in 'default', 'pre_process' or 'post_process'
-	foreach ( keys %{ $c->{'_functions'} } ) {
-	    if ( defined $subs{$_} ) {
-		$c->debug("overriding $_ with user-defined function.");
-		$c->{'_functions'}->{$_} = $subs{$_};
-	    }
-	}
+    # replaces only if the function is
+    # in 'default', 'pre_process' or 'post_process'
+    foreach ( keys %{$c->{'_functions'}} ) {
+        if ( defined $subs{$_} ) {
+            $c->debug("overriding $_ with user-defined function.");
+            $c->{'_functions'}->{$_} = $subs{$_};
+        }
+    }
 }
 
-sub _run_full_round {
-	my $c   = shift;
+# retrieves command line arguments
+# to be executed by the main program
+sub _get_input {
+    my $c = shift;
 
-	$c->debug('calling pre_process function...');
-	$c->{'_functions'}->{'pre_process'}->($c);
+    my $cmd = (defined ($ARGV[0]) and substr($ARGV[0], 0, 1) ne '-')
+            ? shift @ARGV
+            : ''
+            ;
 
- 	my $cmd_obj = $c->{'_commands'}->{ $c->cmd };
+    @{$c->argv} = @ARGV;
+    $c->{'cmd'} = $cmd;
 
-	$c->debug('executing command...');
-	$c->{'output'} = $cmd_obj->run($c, @_);
+    $c->debug('received command: ' . $c->{'cmd'});
+    $c->debug('received parameters: ' . join (' ', @{$c->argv} ));
 
-	$c->debug('calling post_process function...');
-	$c->{'_functions'}->{'post_process'}->($c);
-
-	$c->debug('reseting output');
-	$c->{'output'} = undef;
+    $c->_tinygetopt();
 }
+
+# stores arguments passed to a
+# command via --param[=value] or -p
+sub _tinygetopt {
+    my $c = shift;
+
+    my @argv = ();
+    foreach ( @{$c->argv} ) {
+
+        # single option (could be grouped)
+        if ( m/^\-([^\-\=]+)$/o) {
+            my @args = split //, $1;
+            foreach (@args) {
+				if ($c->options->{$_}) {
+					$c->options->{$_}++;
+				}
+				else {
+					$c->options->{$_} = 1;
+				}
+            }
+        }
+        # long option: --name or --name=value
+        elsif (m/^\-\-([^\-\=]+)(?:\=(.+))?$/o) {
+            $c->options->{$1} = defined $2 ? $2 
+			                  : 1
+                              ;
+        }
+        else {
+            push @argv, $_;
+        }
+    }
+    @{$c->argv} = @argv;
+}
+
 
 #========================#
 #     PUBLIC METHODS     #
 #========================#
 
 sub load_config {
-	require App::Rad::Config;
-	App::Rad::Config::load_config(@_);
+    require App::Rad::Config;
+    App::Rad::Config::load_config(@_);
 }
 
-#TODO save_config
 
-sub path {
-	require FindBin;
-	return $FindBin::Bin;
-}
-
-sub real_path {
-	require FindBin;
-	return $FindBin::RealBin;
-}
-
-# - "Wow! you guys rock!" (zoso on Rad)
 #TODO: this code probably could use some optimization
 sub register_commands {
-	my $c            = shift;
-	my %help_for_sub = ();
-	my %rules        = ();
+    my $c = shift;
+    my %help_for_sub = ();
+    my %rules = ();
 
-	# process parameters
-	foreach my $item (@_) {
-
-	    # if we receive a hash ref, it could be commands or
-	    # rules for fetching commands.
-	    if ( ref($item) ) {
+    # process parameters
+    foreach my $item (@_) {
+        if ( ref ($item) ) {
             Carp::croak '"register_commands" may receive only HASH references'
-                unless ref $item eq 'HASH';
-
-            foreach my $params ( keys %{$item} ) {
-                Carp::croak 'registered elements may only receive strings or hash references'
-                    if ref $item->{$params} and ref $item->{$params} ne 'HASH';
-
-                # we got a rule - push it in.
-                if (   $params eq '-ignore_prefix'
-                    or $params eq '-ignore_suffix'
-                    or $params eq '-ignore_regexp'
+                unless ref ($item) eq 'HASH';
+            foreach my $params (keys %{$item}) {
+                if ($params eq '-ignore_prefix'
+                 or $params eq '-ignore_suffix'
+                 or $params eq '-ignore_regexp'
                 ) {
                     $rules{$params} = $item->{$params};
                 }
-
-                # not a rule, so it's either a command with
-                # help text or a command with an argument list.
-                # either way, we push it to our 'help' hash.
                 else {
                     $help_for_sub{$params} = $item->{$params};
                 }
             }
-	    }
-	    else {
-            $help_for_sub{$item} = undef;    # no help text
-	    }
-	}
+        }
+        else {
+            $help_for_sub{$item} = undef; # no help text
+        }
+    }
 
-	# hack, prevents registering methods from App::Rad namespace when
-	# using shell-mode - Al Newkirk (awnstudio)
-	# my $caller = ( caller(2) or 'main' );
-	my $caller =
-	    (
-	     caller(2) &&
-	     caller(2) ne 'App::Rad' &&
-	     caller(2) ne 'App::Rad::Shell'
-	    ) ?
-	    caller(2) : 'main';
-	my %subs = _get_subs_from($caller);
+    my %subs = _get_subs_from('main');
 
-	# handles explicit command calls first, as
-	# they have priority over generic rules (below)
-	foreach my $cmd ( keys %help_for_sub ) {
+    foreach (keys %help_for_sub) {
 
-	    # we only add the sub to the commands
-	    # list if it's *not* a control function
-	    if ( not defined $c->{'_functions'}->{$cmd} ) {
+        # we only add the sub to the commands
+        # list if it's *not* a control function
+        if ( not defined $c->{'_functions'}->{$_} ) {
 
-            if ( $cmd eq '-globals' ) {
-                # use may set it as a flag to enable global arguments
-                # or elaborate on each available argument
-                # globals is a command named ''
-                $c->register( '', sub {} );
-                # TODO: help showing 'Global options:'
-            }
-
-            # user wants to register a valid (existant) sub
-            elsif ( exists $subs{$cmd} ) {
-                $c->register( $cmd, $subs{$cmd}, $help_for_sub{$cmd} );
+            # user want to register a valid (existant) sub
+            if ( exists $subs{$_} ) {
+                $c->debug("registering $_ as a command.");
+                $c->{'_commands'}->{$_}->{'code'} = $subs{$_};
+                App::Rad::Help->register_help($c, $_, $help_for_sub{$_});
             }
             else {
-                Carp::croak "'$cmd' does not appear to be a valid sub. Registering seems impossible.\n";
+                Carp::croak "'$_' does not appear to be a valid sub. Registering seems impossible.\n";
             }
-	    }
-	}
+        }
+    }
 
-	# no parameters, or params+rules: try to register everything
-	if ( ( !%help_for_sub ) or %rules ) {
-	    foreach my $subname ( keys %subs ) {
+    # no parameters, or params+rules: try to register everything
+    if ((!%help_for_sub) or %rules) {
+        foreach my $subname (keys %subs) {
+
             # we only add the sub to the commands
             # list if it's *not* a control function
             if ( not defined $c->{'_functions'}->{$subname} ) {
-                if ( $rules{'-ignore_prefix'} ) {
-                    next if substr( $subname, 0, length( $rules{'-ignore_prefix'} ) )
-                            eq $rules{'-ignore_prefix'};
+
+                if ( $rules{'-ignore_prefix'} ) {  
+                    next if ( substr ($subname, 0, length($rules{'-ignore_prefix'}))
+                           eq $rules{'-ignore_prefix'}
+                            );
                 }
                 if ( $rules{'-ignore_suffix'} ) {
-                    next if substr( $subname, 
-                                length($subname) - length( $rules{'-ignore_suffix'} ),
-				                length( $rules{'-ignore_suffix'} )
-				            ) eq $rules{'-ignore_suffix'};
+                    next if ( substr ($subname, 
+                                      length($subname) - length($rules{'-ignore_suffix'}),
+                                      length($rules{'-ignore_suffix'})
+                                     )
+                              eq $rules{'-ignore_suffix'}
+                            );
                 }
                 if ( $rules{'-ignore_regexp'} ) {
                     my $re = $rules{'-ignore_regexp'};
@@ -290,239 +285,231 @@ sub register_commands {
 
                 # avoid duplicate registration
                 if ( !exists $help_for_sub{$subname} ) {
-                    $c->register( $subname, $subs{$subname} );
+                    $c->{'_commands'}->{$subname}->{'code'} = $subs{$subname};
+                    App::Rad::Help->register_help($c, $subname, undef);
                 }
             }
-	    }
-	}
+        }
+    }
 }
 
+
 sub register_command { return register(@_) }
-
 sub register {
-    my ( $c, $command_name, $coderef, $extra ) = @_;
+    my ($c, $command_name, $coderef, $helptext) = @_;
+    $c->debug("got: " . ref $coderef);
+    return undef
+        unless ( (ref $coderef) eq 'CODE' );
 
-	# short circuit
-	return unless ref $coderef eq 'CODE';
-
-	my %command_options = (
-	    name => $command_name,
-	    code => $coderef,
-	);
-
-	# the extra parameter may be a help string
-	# or an argument hashref
-	if ($extra) {
-	    if ( ref $extra ) {
-            $command_options{opts} = $extra;
-	    }
-	    else {
-            $command_options{help} = $extra;
-	    }
-	}
-
-	my $cmd_obj = App::Rad::Command->new( \%command_options );
-	return unless $cmd_obj;
-
-	#TODO: I don't think this message is ever being printed (wtf?)
-	$c->debug("registering $command_name as a command.");
-
-	$c->{'_commands'}->{$command_name} = $cmd_obj;
-	return $command_name;
+    $c->debug("registering $command_name as a command.");
+    $c->{'_commands'}->{$command_name}->{'code'} = $coderef;
+    App::Rad::Help->register_help($c, $command_name, $helptext);
+    return $command_name;
 }
 
 sub unregister_command { return unregister(@_) }
-
 sub unregister {
-	my ( $c, $command_name ) = @_;
+    my ($c, $command_name) = @_;
 
-	if ( $c->{'_commands'}->{$command_name} ) {
-	    delete $c->{'_commands'}->{$command_name};
-	}
-	else {
-	    return undef;
-	}
+    if ( $c->{'_commands'}->{$command_name} ) {
+        delete $c->{'_commands'}->{$command_name};
+    }
+    else {
+        return undef;
+    }
 }
+
+
+sub create_command_name {
+    my $id = 0;
+    foreach (commands()) {
+        if ( m/^cmd(\d+)$/ ) {
+            $id = $1 if ($1 > $id);
+        }
+    }
+    return 'cmd' . ($id + 1);
+}
+
 
 sub commands {
-	return ( grep { $_ ne '' } keys %{ $_[0]->{'_commands'} } );
+    return ( keys %{$_[0]->{'_commands'}} );
 }
+
 
 sub is_command {
-	my ( $c, $cmd ) = @_;
-	return 0 unless defined $cmd and $cmd ne '';
-	return (
-	    defined $c->{'_commands'}->{$cmd}
-	    ? 1
-	    : 0
-	);
+    my ($c, $cmd) = @_;
+    return (defined $c->{'_commands'}->{$cmd}
+            ? 1
+            : 0
+           );
 }
 
-# TODO: turn 'command' into an alias for ->cmd
-sub command : lvalue { $_[0]->{'cmd'} }
-sub cmd     : lvalue { $_[0]->{'cmd'} }
+sub command :lvalue { cmd(@_) }
+sub cmd :lvalue {
+    $_[0]->{'cmd'};
+}
 
-# - "I'm loving having something else write up the 80% drudge
-#   code for the small things." (benh on Rad)
+
 sub run {
     my $class = shift;
-	my $c     = {};
-	bless $c, $class;
+    my $c = {};
+    bless $c, $class;
 
-	$c->_init();
+    $c->_init();
 
-	# first we update the control functions
-	# with any overriden value
-	$c->_register_functions();
+    # first we update the control functions
+    # with any overriden value
+    $c->_register_functions();
 
-	# then we run the setup to register
-	# some commands
-	$c->{'_functions'}->{'setup'}->($c);
+    # then we run the setup to register
+    # some commands
+    $c->{'_functions'}->{'setup'}->($c);
 
-	# now we get the actual input from
-	# the command line (someone using the app!)
-    my $arg = App::Rad::Parser::parse_input($c);
-    my $cmd_obj = $c->{'_commands'}->{$c->cmd};
+    # now we get the actual input from
+    # the command line (someone using the app!)
+    $c->_get_input();
 
-    # handle special cases (default and invalid)
-	if ( defined $arg ) {
-	    $c->debug( "'$arg' is not a valid command. Falling to invalid." );
-	    $cmd_obj->{code} = $c->{'_functions'}->{'invalid'};
-	}
-	elsif ( $c->cmd eq '' ) {
-	    $c->debug('no command detected. Falling to default');
-	    $cmd_obj->{code} = $c->{'_functions'}->{'default'};
-	}
+    # run the specified command
+    $c->execute();
 
-	# run the specified command
-	$c->_run_full_round($cmd_obj, $arg);
+    # that's it. Tear down everything and go home :)
+    $c->{'_functions'}->{'teardown'}->($c);
 
-	# that's it. Tear down everything and go home :)
-	$c->{'_functions'}->{'teardown'}->($c);
-
-	return 0;
+    return 0;
 }
 
-# run operations
+# run operations 
 # in a shell-like environment
-sub shell {
-	my $class = shift;
-	require App::Rad::Shell;
-	App::Rad::Shell::shell($class, @_);
-}
+#sub shell {
+#    my $class = shift;
+#    App::Rad::Shell::shell($class);
+#}
 
 sub execute {
-	my ( $c, $cmd ) = @_;
+    my ($c, $cmd) = @_;
 
-	# given command has precedence
-	if ($cmd) {
-	    $c->{'cmd'} = $cmd;
-	}
-	else {
-	    $cmd = $c->{'cmd'};    # now $cmd always has the called cmd
-	}
+    # given command has precedence
+    if ($cmd) {
+        $c->{'cmd'} = $cmd;
+    }
+    else {
+        $cmd = $c->{'cmd'};  # now $cmd always has the called cmd
+    }
 
-	# valid command, run it and return the command name
-	if ( $c->is_command($cmd) ) {
-	    my $cmd_obj = $c->{'_commands'}->{$cmd};
+    $c->debug('calling pre_process function...');
+    $c->{'_functions'}->{'pre_process'}->($c);
 
-	    # set default values for command (if available)
-	    App::Rad::Parser::set_defaults($cmd_obj);
+    $c->debug("executing '$cmd'...");
 
-	    $c->_run_full_round( $cmd_obj, @_ );
-	    return $cmd;
-	}
-	else {
-	    # if not a command, return undef
-	    return;
-	}
+    # valid command, run it
+    if ($c->is_command($c->{'cmd'}) ) {
+        $c->{'output'} = $c->{'_commands'}->{$cmd}->{'code'}->($c);
+    }
+    # no command, run default()
+    elsif ( $cmd eq '' ) {
+        $c->debug('no command detected. Falling to default');
+        $c->{'output'} = $c->{'_functions'}->{'default'}->($c);
+    }
+    # invalid command, run invalid()
+    else {
+        $c->debug("'$cmd' is not a valid command. Falling to invalid.");
+        $c->{'output'} = $c->{'_functions'}->{'invalid'}->($c);
+    }
+
+    # 3: post-process the result
+    # from the command
+    $c->debug('calling post_process function...');
+    $c->{'_functions'}->{'post_process'}->($c);
+
+    $c->debug('reseting output');
+    $c->{'output'} = undef;
 }
 
-sub argv    { return $_[0]->{'_ARGV'} }
-sub options { return $_[0]->{'_commands'}->{ $_[0]->{'cmd'} }->options }
-sub stash   { return $_[0]->{'_stash'} }
-sub config  { return $_[0]->{'_config'} }
-    
-# get user information via prompting - Al Newkirk (awnstudio)
-sub prompt { return App::Rad::Shell::prompt(@_); }
+sub argv    { return $_[0]->{'_ARGV'}     }
+sub options { return $_[0]->{'_options'} }
+sub stash   { return $_[0]->{'_stash'}   }   
+sub config  { return $_[0]->{'_config'}  }
 
 # $c->plugins is sort of "read-only" externally
-sub plugins {
-	my @plugins = @{ $_[0]->{'_plugins'} };
-	return @plugins;
+sub plugins { 
+    my @plugins = @{$_[0]->{'_plugins'}};
+    return @plugins;
 }
 
+
 sub getopt {
-	require Getopt::Long;
-	Carp::croak "Getopt::Long needs to be version 2.36 or above"
-	  unless $Getopt::Long::VERSION >= 2.36;
+    require Getopt::Long;
+    Carp::croak "Getopt::Long needs to be version 2.36 or above"
+        unless $Getopt::Long::VERSION >= 2.36;
 
-	my ( $c, @options ) = @_;
+    my ($c, @options) = @_;
 
-	# reset values from tinygetopt
-	#TODO: how the new parser copes with this?
-	%{ $c->options } = ();
+    # reset values from tinygetopt
+    $c->{'_options'} = {};
 
-	my $parser = new Getopt::Long::Parser;
-	$parser->configure(qw(bundling));
+    my $parser = new Getopt::Long::Parser;
+    $parser->configure( qw(bundling) );
 
-	my @tARGV = @ARGV;    # we gotta stick to our API
-	#FIXME: line below doesn't work with new internal structure
-	my $ret = $parser->getoptions( $c->{'_options'}, @options );
-	@{ $c->argv } = @ARGV;
-	@ARGV = @tARGV;
+    my @tARGV = @ARGV; # we gotta stick to our API
+    my $ret = $parser->getoptions($c->{'_options'}, @options);
+    @{$c->argv} = @ARGV;
+    @ARGV = @tARGV;
 
-	return $ret;
+    return $ret;
 }
 
 sub debug {
-	if ( shift->{'debug'} ) {
-	    print "[debug]   @_\n";
-	}
+    if (shift->{'debug'}) {
+        print "[debug]   @_\n";
+    }
 }
 
 # gets/sets the output (returned value)
 # of a command, to be post processed
 sub output {
-	my ( $c, @msg ) = @_;
-	if (@msg) {
-	    $c->{'output'} = join( ' ', @msg );
-	}
-	else {
-	    return $c->{'output'};
-	}
+    my ($c, @msg) = @_;
+    if (@msg) {
+        $c->{'output'} = join(' ', @msg);
+    }
+    else {
+        return $c->{'output'};
+    }
 }
+
 
 #=========================#
 #     CONTROL FUNCTIONS   #
 #=========================#
 
-sub setup { $_[0]->register_commands( { -ignore_prefix => '_' } ) }
+sub setup { $_[0]->register_commands( {-ignore_prefix => '_'} ) }
 
 sub teardown {}
 
 sub pre_process {}
 
 sub post_process {
-	my $c = shift;
+    my $c = shift;
 
-	if ( $c->output() ) {
-	    print $c->output() . $/;
-	}
+    if ($c->output()) {
+        print $c->output() . $/;
+    }
 }
+
 
 sub default {
-	my $c = shift;
-	return $c->{'_commands'}->{'help'}->run($c);
+    my $c = shift;
+    return $c->{'_commands'}->{'help'}->{'code'}->($c);
 }
+
 
 sub invalid {
-	my $c = shift;
-	return $c->{'_functions'}->{'default'}->($c);
+    my $c = shift;
+    return $c->{'_functions'}->{'default'}->($c);
 }
 
+
 }
-42;    # ...and thus ends thy module  ;)
+42; # ...and thus ends thy module  ;)
 __END__
 
 =head1 NAME
@@ -546,7 +533,7 @@ That's it, your program already works and you can use it directly via the comman
     Usage: myapp.pl command [arguments]
     
     Available Commands:
-	help    show syntax and available commands
+        help    show syntax and available commands
 
 Next, start creating your own functions (e.g.) inside I<myapp.pl>:
 
@@ -560,8 +547,8 @@ And now your simple command line program I<myapp.pl> has a 'hello' command!
     Usage: myapp.pl command [arguments]
     
     Available Commands:
-	hello
-	help    show syntax and available commands
+        hello
+        help    show syntax and available commands
 
 
    [user@host]$ ./myapp.pl hello
@@ -581,8 +568,8 @@ And then, as expected:
     Usage: myapp.pl command [arguments]
     
     Available Commands:
-	hello   give a nice compliment
-	help    show syntax and available commands
+        hello   give a nice compliment
+        help    show syntax and available commands
 
 
 App::Rad also lets you expand your applications, providing a lot of flexibility for every command, with embedded help, argument and options parsing, configuration file, default behavior, and much more:
@@ -594,9 +581,9 @@ App::Rad also lets you expand your applications, providing a lot of flexibility 
         my $c = shift;
 
         $c->register_commands( {
-            foo => 'expand your foo!',
-            bar => 'have a drink! arguments: --drink=DRINK',
-	    });
+                foo => 'expand your foo!',
+                bar => 'have a drink! arguments: --drink=DRINK',
+            });
     }
 
     sub foo {
@@ -620,7 +607,7 @@ App::Rad also lets you expand your applications, providing a lot of flexibility 
         }
     }
 
-	
+        
 
 You can try on the command line:
 
@@ -628,9 +615,9 @@ You can try on the command line:
     Usage: myapp.pl command [arguments]
     
     Available Commands:
-	bar 	have a drink! arguments: --drink=DRINK
-	foo 	expand your foo!
-	help	show syntax and available commands
+        bar 	have a drink! arguments: --drink=DRINK
+        foo 	expand your foo!
+        help	show syntax and available commands
 
 
    [user@host]$ ./myapp.pl bar --drink=martini
@@ -659,8 +646,8 @@ will load the C<< App::Rad::Plugin::My::Module >> plugin for you!
 Developers are B<strongly> encouraged to publish their App::Rad plugins under the C<< App::Rad::Plugin >> namespace. But, if your plugin start with a name other than that, you can fully qualify the name by using an unary plus sign:
 
   use App::Rad  qw(
-	  My::Module
-	  +Fully::Qualified::Plugin::Name
+          My::Module
+          +Fully::Qualified::Plugin::Name
   );
 
 Note that plugins are loaded in the order in which they appear.
@@ -703,8 +690,8 @@ the associated help text would go like this:
     Usage: myapp.pl command [arguments]
 
     Available Commands:
-	help 	show syntax and available commands
-	mycmd	display a nice welcome message
+        help 	show syntax and available commands
+        mycmd	display a nice welcome message
     
 
 =head1 OTHER BUILT IN COMMANDS (OPT-IN)
@@ -747,7 +734,7 @@ App::Rad not only transforms and adjusts your one-liner so it can be used inside
         local ($^I) = "";
         local ($/)  = "\n";
         local ($\)  = "\n";
-        LINE: while ( defined( $_ = <ARGV> ) ) {
+      LINE: while ( defined( $_ = <ARGV> ) ) {
             chomp $_;
             our (@F) = split( /,/, $_, 0 );
             splice @F, 1, 0, $.;
@@ -942,6 +929,11 @@ Returns a list of available commands (I<functions>) inside your program
 Returns 1 (true) if the given I<COMMAND_NAME> is available, 0 (false) otherwise.
 
 
+=head2 $c->create_command_name()
+
+Returns a valid name for a command (i.e. a name slot that's not been used by your program). This goes in the form of 'cmd1', 'cmd2', etc., so don't use unless you absolutely have to. App::Rad, for instance, uses this whenever you try to I<include> (see below) a new command but do not supply a name for it.
+
+
 =head2 $c->load_config( I<< FILE (FILE2, FILE3, ...) >> )
 
 This method lets you easily load into your program one or more configuration files written like this:
@@ -1003,10 +995,10 @@ The code above will register B<only> the subs C<foo>, C<bar> and C<baz> as comma
 =head3 Adding single commands (with inline help)
 
     $c->register_commands(
-        {
-            dos2unix => 'convert text files from DOS to Unix format',
-            unix2dos => 'convert text files from Unix to DOS format',
-        }
+            {
+                dos2unix => 'convert text files from DOS to Unix format',
+                unix2dos => 'convert text files from Unix to DOS format',
+            }
     );
 
 You can pass a hash reference containing commands as keys and a small help string as their values. The code above will register B<only> the subs C<dos2unix> and C<unix2dos>, and the default help for your program will become something like this:
@@ -1015,9 +1007,9 @@ You can pass a hash reference containing commands as keys and a small help strin
     Usage: myapp.pl command [arguments]
     
     Available Commands:
-	dos2unix    convert text files from DOS to Unix format
-	help        show syntax and available commands
-	unix2dos    convert text files from Unix to DOS format
+        dos2unix    convert text files from DOS to Unix format
+        help        show syntax and available commands
+        unix2dos    convert text files from Unix to DOS format
 
 
 =head3 Adding several commands
@@ -1056,9 +1048,9 @@ This way you can easily segregate between commands and helper functions, making 
 You can combine some of the options above to have even more flexibility:
 
     $c->register_commands(
-	    'foo',
-	    { -ignore_suffix => 'foo' },
-	    { bar => 'all your command line are belong to us' },
+            'foo',
+            { -ignore_suffix => 'foo' },
+            { bar => 'all your command line are belong to us' },
     );
 
 The code above will register as commands all subs with names B<not> ending in 'foo', but it B<will> register the 'foo' sub as well. It will also give the 'bar' command the help string. This behavior is handy for registering several commands and having a few exceptions, or to add your commands and only have inline help for a few of them (as you see fit).
@@ -1067,9 +1059,9 @@ You don't have to worry about the order of your elements passed, App::Rad will f
 
     # this does the same as the code above
     $c->register_commands(
-	    { bar => 'all your command line are belong to us' },
-	    'foo',
-	    { -ignore_suffix => 'foo' },
+            { bar => 'all your command line are belong to us' },
+            'foo',
+            { -ignore_suffix => 'foo' },
     );
 
 You can even bundle the hash reference to include your C<< cmd => help >> and special keys:
@@ -1169,8 +1161,8 @@ Default's default (grin) is just an alias for the help command.
     sub default {
         my $c = shift;
 
-        # will fall here if no command is issued
-        # or if an invalid command is called (see below)
+        # will fall here if the given
+        # command isn't valid.
     }
 
 You are free (and encouraged) to change the default behavior to whatever you want. This is rather useful for when your program will only do one thing, and as such it receives only parameters instead of command names. In those cases, use the "C<< default() >>" sub as your main program's sub and parse the parameters with C<< $c->argv >> and C<< $c->getopt >> as you would in any other command.
@@ -1204,8 +1196,8 @@ If implemented, this function is called automatically right after the requested 
     sub post_process {
         my $c = shift;
 
-        if ( $c->output ) {
-            print $c->output . "\n";
+        if ( $c->output() ) {
+            print $c->output() . "\n";
         }
     }
 
@@ -1255,7 +1247,7 @@ You can find documentation for this module with the perldoc command.
 
     perldoc App::Rad
 
-Although this Module comes without any warraties whatsoever (see DISCLAIMER below), I try really hard to provide some quality assurance for the users to guarantee proper stability and consistency among different platforms. This means I not only try to close all reported bugs in the minimum amount of time but I also try to find some on my own.
+Although this Module comes without any warraties whatsoever (see DISCLAIMER below), I try really hard to provide some quality assurance for the users. This means I not only try to close all reported bugs in the minimum amount of time but I also try to find some on my own.
 
 This version of App::Rad comes with 183 tests and I keep my eye constantly on CPAN Testers L<http://www.cpantesters.org/show/App-Rad.html> to ensure it passes all of them, in all platforms. You can send me your own App::Rad tests if you feel I'm missing something and I'll hapilly add them to the distribution.
 
@@ -1321,19 +1313,11 @@ Breno G. de Oliveira, C<< <garu at cpan.org> >>
 
 (in alphabetical order)
 
-Al Newkirk, C<< <awnstudio at cpan.org> >>
-
 Ben Hengst
-
-Eden Cardim
-
-Esteban Manchado
 
 Fernando Correa
 
 Flavio Glock
-
-Gabriel Vieira
 
 Thanks to everyone for contributing! Please let me know if I've skipped your name by accident.
 

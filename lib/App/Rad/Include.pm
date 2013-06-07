@@ -10,18 +10,6 @@ sub load {
     $c->register('include', \&include, 'include one-liner as a command');
 }
 
-sub create_command_name {
-    my $c = shift;
-	my $id = 0;
-	foreach ( $c->commands() ) {
-	    if (m/^cmd(\d+)$/) {
-            $id = $1 if ( $1 > $id );
-	    }
-	}
-	return 'cmd' . ( $id + 1 );
-}
-
-
 # translates one-liner into
 # a complete, readable code
 sub _get_oneliner_code {
@@ -185,7 +173,7 @@ sub include {
         }
     }
     else {
-        $command_name = create_command_name($c);
+        $command_name = $c->create_command_name();
     }
     $c->debug("including command '$command_name'...");
 
@@ -246,10 +234,6 @@ Loads the module into App::Rad
 =head2 include
 
 Translates perl one-liner into self-contained command (subroutine) and adds it to your App::Rad program.
-
-=head2 create_command_name()
-
-Returns a valid name for a command (i.e. a name slot that's not been used by your program). This goes in the form of 'cmd1', 'cmd2', etc., so don't use unless you absolutely have to. App::Rad, for instance, uses this whenever you try to I<include> (see below) a new command but do not supply a name for it.
 
 
 =head1 DEPENDENCIES

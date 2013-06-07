@@ -15,82 +15,41 @@ sub load {
 # such as "myapp.pl help command"
 sub help {
     my $c = shift;
-    return usage($c) . "\n\n" . helpstr($c);
+    return usage() . "\n\n" . helpstr($c);
 }
 
 sub usage {
-    my $c = shift;
-    my $cmd;
-    $cmd = $c->argv->[0] if $c->is_command($c->argv->[0]);
-    return "Usage: $0 command [arguments]" unless $cmd;
-    my %options = %{ $c->{'_commands'}->{$cmd}->{opts} };
-    my @opts;
-    @opts = map {"-" . ("-" x (length != 1)) . "$_="
-            . (join " ", ((uc($options{$_}->{type}))
-               x (exists $options{$_}->{arguments} ? $options{$_}->{arguments} : 1))) }
-                  sort grep {$options{$_}->{required}} keys %options;
-    push @opts, map {"[-" . ("-" x (length != 1)) . "$_="
-            . join(" ", (uc($options{$_}->{type}))
-               x (exists $options{$_}->{arguments} ? $options{$_}->{arguments} : 1)) . "]"}
-                  sort grep {not $options{$_}->{required}} keys %options;
-    #print $c->{'_commands'}->{$cmd}, $/;
-    
-    return "Usage: $0 $cmd @opts";
+    return "Usage: $0 command [arguments]";
 }
 
 sub helpstr {
     my $c = shift;
-    my $cmd;
-    $cmd = $c->argv->[0] if $c->is_command($c->argv->[0]);
-    unless($cmd) {
-        my $string = "Available Commands:\n";
+    
+    my $string = "Available Commands:\n";
 
-
-        # get length of largest command name
-        my $len = 0;
-        foreach ( sort $c->commands() ) {
-            $len = length($_) if (length($_) > $len);
-        }
-
-        # format help string
-        foreach ( sort $c->commands() ) {
-            $string .= sprintf "    %-*s\t%s\n", $len, $_, 
-                               defined ($c->{'_commands'}->{$_}->help)
-                               ? $c->{'_commands'}->{$_}->help
-                               : ''
-                               ;
-                    ;
-        }
-        return $string;
-    } else {
-        my %options = %{ $c->{'_commands'}->{$cmd}->{opts} };
-        my $string = "Available Options:\n";
-
-
-        # get length of largest command name
-        my $len = 0;
-        foreach ( sort keys %options ) {
-            $len = length($_) if (length($_) > $len);
-        }
-
-        # format help string
-        foreach ( sort keys %options ) {
-            $string .= sprintf "    %-*s\t%s\n", $len, $_, 
-                               defined ($options{$_}->{help})
-                               ? $options{$_}->{help}
-                               : ''
-                               ;
-                    ;
-        }
-        return $string;
+    # get length of largest command name
+    my $len = 0;
+    foreach ( sort $c->commands() ) {
+        $len = length($_) if (length($_) > $len);
     }
+
+    # format help string
+    foreach ( sort $c->commands() ) {
+        $string .= sprintf "    %-*s\t%s\n", $len, $_, 
+                           defined ($c->{'_commands'}->{$_}->{'help'})
+                           ? $c->{'_commands'}->{$_}->{'help'}
+                           : ''
+                           ;
+                ;
+    }
+    return $string;
 }
     
 
 {
 my %help_attr = ();
 sub UNIVERSAL::Help :ATTR(CODE) {
-    my ($package, $symbol, undef, undef, $data) = (@_);
+     my ($package, $symbol, $ref, $attr, $data, $phase, $filename, $linenum) = @_;
 
     if ($package eq 'main') {
         # If data is a single word, it is received as an array ref. Don't ask.
@@ -99,10 +58,20 @@ sub UNIVERSAL::Help :ATTR(CODE) {
     }
 }
 
-sub get_help_attr_for {
-    my ($self, $cmd) = (@_);
-    return $help_attr{$cmd};
+sub register_help {
+    my ($self, $c, $cmd, $helptext) = @_;
+
+    if ((not defined $helptext) && (defined $help_attr{$cmd})) {
+        $helptext = $help_attr{$cmd};
+    }
+
+    # we do $helptext // undef as it would issue a warning otherwise
+    $c->{'_commands'}->{$cmd}->{'help'} = defined $helptext
+                                        ? $helptext
+                                        : undef
+                                        ;
 }
+
 }
 42;
 __END__
@@ -153,30 +122,25 @@ This is an internal module for App::Rad and should not be used separately (unles
 
 =head1 INTERNAL METHODS
 
-=head2 Methods you might want to override:
-
-=head3 usage
-
-Prints usage string. Default is "Usage: $0 command [arguments]", where $0 is your program's name.
-
-=head3 helpstr
-
-Prints a help string with all available commands and their help description.
-
-=head3 help
-
-Show full help text (usage + helpstr)
-
-
-=head2 Methods you really don't need to worry about
-
-=head3 load
+=head2 load
 
 Loads the module into App::Rad
 
-=head3 get_help_attr_for
+=head2 help
 
-given a command name, returns it's help string (if one was set with the :Help() attribute)
+Show help text
+
+=head2 register_help
+
+Associates help text with command
+
+=head2 usage
+
+Prints usage string. Default is "Usage: $0 command [arguments]", where $0 is your program's name.
+
+=head2 helpstr
+
+Prints a help string with all available commands and their help description.
 
 =head1 DEPENDENCIES
 

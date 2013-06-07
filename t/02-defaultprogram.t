@@ -1,7 +1,21 @@
 use Test::More tests => 2;
-use App::Rad::Tester;
 
-my ($out, $filename) = test_app(\*DATA);
+SKIP: {
+    eval "use File::Temp qw{ tempfile tempdir }";
+    skip "File::Temp not installed", 2 if $@;
+
+    my ($fh, $filename) = tempfile(UNLINK => 1);
+    diag("using temporary program file '$filename' to test functionality");
+
+    my $contents = <<"EOT";
+use App::Rad;
+App::Rad->run();
+EOT
+
+    print $fh $contents;
+    close $fh;
+   
+    my $ret = `$^X $filename`;
 
 my $helptext = <<"EOHELP";
 Usage: $filename command [arguments]
@@ -11,11 +25,9 @@ Available Commands:
 
 EOHELP
 
-is($out, $helptext);
+    is($ret, $helptext);
 
-$out = test_app($filename, 'help');
-is($out, $helptext);
-
-__DATA__
-use App::Rad;
-App::Rad->run();
+    $ret = '';
+    $ret = `$^X $filename help`;
+    is($ret, $helptext);
+}

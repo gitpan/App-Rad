@@ -1,6 +1,4 @@
 package App::Rad::Config;
-use strict;
-use warnings;
 
 sub load_config {
     my ($c, @files) = (@_);
